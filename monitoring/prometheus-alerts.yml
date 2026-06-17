@@ -1,0 +1,258 @@
+## Prometheus Alerting Rules — AI Job Agent
+## Place in /etc/prometheus/rules/ai-job-agent.yml
+
+groups:
+
+  # ==================== API HEALTH ====================
+  - name: api_health
+    interval: 30s
+    rules:
+
+      - alert: APIDown
+        expr: up{job="ai-job-agent"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 API is DOWN"
+          description: "AI Job Agent API has been unreachable for more than 1 minute."
+          runbook: "https://docs.internal/runbooks/api-down"
+          dashboard: "https://grafana.internal/d/ai-job-agent-prod"
+
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m])
+          /
+          rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 High error rate: {{ $value | humanizePercentage }}"
+          description: "5xx error rate is above 5% for 2+ minutes. Current: {{ $value | humanizePercentage }}"
+          runbook: "https://docs.internal/runbooks/high-error-rate"
+
+      - alert: SlowAPIResponse
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Slow API: p95 latency {{ $value | humanizeDuration }}"
+          description: "95th percentile response time is above 1 second for 5+ minutes."
+
+      - alert: CriticallySlowAPI
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 3.0
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 API critically slow: p95 latency {{ $value | humanizeDuration }}"
+          description: "95th percentile response time is above 3 seconds. Users experiencing severe degradation."
+
+  # ==================== LLM & COSTS ====================
+  - name: llm_costs
+    interval: 60s
+    rules:
+
+      - alert: LLMCostSpiking
+        expr: |
+          sum(increase(llm_cost_usd_total[1h])) > 10
+        for: 0m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ LLM spending spike: ${{ $value | humanize }} in last hour"
+          description: "LLM API costs exceeded $10 in the last hour. Investigate unusual activity or cache miss spike."
+
+      - alert: LLMCostCritical
+        expr: |
+          sum(increase(llm_cost_usd_total[1h])) > 50
+        for: 0m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 LLM cost critical: ${{ $value | humanize }} in last hour"
+          description: "LLM API costs exceeded $50 in the last hour — auto-throttle may be needed."
+
+      - alert: LowCacheHitRate
+        expr: llm_cache_hit_rate < 0.7
+        for: 15m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Cache hit rate low: {{ $value | humanizePercentage }}"
+          description: "LLM cache hit rate dropped below 70% for 15+ minutes. LLM costs will increase."
+
+      - alert: LLMAPIDown
+        expr: |
+          sum(increase(system_errors_total{error_type="llm_api_error"}[5m])) > 10
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 LLM API appears down (10+ errors in 5 minutes)"
+          description: "Multiple LLM API errors detected. Circuit breaker may have activated."
+
+  # ==================== QUEUE & WORKERS ====================
+  - name: celery_workers
+    interval: 30s
+    rules:
+
+      - alert: QueueDepthHigh
+        expr: celery_queue_length > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Celery queue backup: {{ $value }} tasks pending"
+          description: "Celery queue depth exceeded 500 for 5+ minutes. Workers may be overwhelmed."
+
+      - alert: QueueDepthCritical
+        expr: celery_queue_length > 2000
+        for: 2m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 Celery queue critical: {{ $value }} tasks pending"
+          description: "Celery queue depth exceeded 2000. Scale workers immediately."
+          action: "kubectl scale deployment celery-worker --replicas=15 -n ai-job-agent"
+
+      - alert: WorkerDown
+        expr: |
+          sum(celery_workers_online) < 2
+        for: 3m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 Celery workers down: only {{ $value }} online"
+          description: "Fewer than 2 Celery workers online for 3+ minutes. Job processing severely degraded."
+
+      - alert: HighTaskFailureRate
+        expr: |
+          rate(celery_task_failures_total[5m])
+          /
+          rate(celery_task_duration_seconds_count[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Task failure rate: {{ $value | humanizePercentage }}"
+          description: "Celery task failure rate exceeded 10% for 5+ minutes."
+
+  # ==================== DATABASE ====================
+  - name: database
+    interval: 60s
+    rules:
+
+      - alert: DatabaseConnectionsHigh
+        expr: db_connections_active > 18
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ DB connections near limit: {{ $value }}/20"
+          description: "Database connection pool nearly exhausted. Consider adding read replica."
+
+      - alert: DatabaseConnectionsCritical
+        expr: db_connections_active >= 20
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "🚨 DB connection pool full: {{ $value }}/20"
+          description: "Database connection pool is full. New requests will fail. Immediate action required."
+
+  # ==================== BUSINESS METRICS ====================
+  - name: business_metrics
+    interval: 300s   # 5 minute checks
+    rules:
+
+      - alert: NoApplicationsSubmitted
+        expr: |
+          sum(increase(applications_submitted_total[1h])) == 0
+        for: 0m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "⚠️ No applications submitted in last hour"
+          description: "Zero job applications submitted in the last hour. System may be stuck."
+
+      - alert: LowATSScores
+        expr: |
+          avg_over_time(resume_ats_score[1h]) < 60
+        for: 30m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "⚠️ Average ATS score degraded: {{ $value | humanize }}"
+          description: "Average resume ATS score dropped below 60 for 30+ minutes. Prompt quality may have regressed."
+
+      - alert: HighDuplicateApplicationRate
+        expr: |
+          sum(increase(applications_submitted_total{status="duplicate"}[1h]))
+          /
+          sum(increase(applications_submitted_total[1h])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ High duplicate application rate: {{ $value | humanizePercentage }}"
+          description: "More than 10% of applications are duplicates. Idempotency may be failing."
+
+  # ==================== SECURITY ====================
+  - name: security
+    interval: 60s
+    rules:
+
+      - alert: HighRateLimitHits
+        expr: |
+          sum(increase(http_requests_total{status="429"}[5m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "⚠️ Potential abuse: {{ $value }} rate-limited requests in 5 minutes"
+          description: "Unusually high rate of 429 responses. May indicate abuse or misconfigured client."
+
+      - alert: SuspiciousAuthFailures
+        expr: |
+          sum(increase(http_requests_total{endpoint="/auth/token", status="401"}[5m])) > 50
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "⚠️ High auth failure rate: {{ $value }} failures in 5 minutes"
+          description: "Possible brute-force attack on authentication endpoint. Consider IP blocking."
+
+      - alert: SystemErrorSpike
+        expr: |
+          sum(increase(system_errors_total[5m])) > 50
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "⚠️ Error spike: {{ $value }} errors in 5 minutes"
+          description: "Unusually high system error count. Check logs for root cause."

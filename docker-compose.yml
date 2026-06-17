@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-job-agent-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-changeMe123}
+      POSTGRES_DB: ai_job_agent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-job-network
+
+  # =============================================================================
+  # Redis (for caching and task queue)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-job-agent-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-job-network
+
+  # =============================================================================
+  # AI Job Agent Application
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-job-agent-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-changeMe123}@postgres:5432/ai_job_agent
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # API Keys (from .env file)
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      
+      # Platform Credentials
+      LINKEDIN_EMAIL: ${LINKEDIN_EMAIL}
+      LINKEDIN_PASSWORD: ${LINKEDIN_PASSWORD}
+      INDEED_EMAIL: ${INDEED_EMAIL}
+      INDEED_PASSWORD: ${INDEED_PASSWORD}
+      
+      # Application Settings
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      HEADLESS_BROWSER: ${HEADLESS_BROWSER:-true}
+      ENABLE_AUTO_APPLY: ${ENABLE_AUTO_APPLY:-false}
+      MAX_APPLICATIONS_PER_DAY: ${MAX_APPLICATIONS_PER_DAY:-50}
+      
+      # Monitoring
+      SENTRY_DSN: ${SENTRY_DSN}
+      ENABLE_SENTRY: ${ENABLE_SENTRY:-false}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./screenshots:/app/screenshots
+      - resume_uploads:/app/uploads
+    command: python main.py --mode auto
+    restart: unless-stopped
+    networks:
+      - ai-job-network
+
+  # =============================================================================
+  # FastAPI Backend
+  # =============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-job-agent-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-changeMe123}@postgres:5432/ai_job_agent
+      REDIS_URL: redis://redis:6379/0
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    command: python api/main.py
+    restart: unless-stopped
+    networks:
+      - ai-job-network
+
+  # =============================================================================
+  # Scheduler (for cron jobs)
+  # =============================================================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-job-agent-scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-changeMe123}@postgres:5432/ai_job_agent
+      REDIS_URL: redis://redis:6379/0
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      DAILY_RUN_TIME: ${DAILY_RUN_TIME:-09:00}
+      TIMEZONE: ${TIMEZONE:-America/New_York}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./screenshots:/app/screenshots
+    command: python -m apscheduler
+    restart: unless-stopped
+    networks:
+      - ai-job-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+  # =============================================================================
+  # Celery Worker — processes async job application tasks
+  # =============================================================================
+  celery-worker:
+    build: .
+    container_name: ai-job-agent-worker
+    command: celery -A infrastructure.tasks worker --loglevel=info --concurrency=2 --queues=high_priority,default,low_priority
+    environment:
+      DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD:-changeMe123}@postgres:5432/ai_job_agent
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-insecure-key-change-in-production}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    networks:
+      - ai-job-network
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  resume_uploads:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  ai-job-network:
+    driver: bridge

@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB
+data/chroma/
+
+# Screenshots
+screenshots/
+*.png
+*.jpg
+*.jpeg
+
+# Resumes
+/tmp/resumes/
+uploads/
+*.docx
+*.pdf
+
+# Test Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+.pytest_cache/
+.tox/
+
+# Docker
+*.tar.gz
+*.zip
+
+# Backup files
+*.bak
+backup-*.sql
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Credentials (NEVER COMMIT THESE)
+*_credentials.json
+*_token.json
+credentials/
+secrets/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

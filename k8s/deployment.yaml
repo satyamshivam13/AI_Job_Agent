@@ -1,0 +1,368 @@
+# ==================== NAMESPACE ====================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-job-agent
+
+---
+# ==================== CONFIGMAP ====================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-job-agent-config
+  namespace: ai-job-agent
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+  DATABASE_POOL_SIZE: "20"
+  REDIS_DB: "0"
+
+---
+# ==================== SECRETS ====================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-job-agent-secrets
+  namespace: ai-job-agent
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://user:password@postgres:5432/ai_job_agent"
+  REDIS_URL: "redis://redis:6379/0"
+  GROQ_API_KEY: "your-groq-api-key"
+  VOYAGE_API_KEY: "your-voyage-api-key"
+  OPENAI_API_KEY: "your-openai-api-key"
+  JWT_SECRET_KEY: "your-jwt-secret"
+
+---
+# ==================== API DEPLOYMENT ====================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: ai-job-agent
+  labels:
+    app: ai-job-agent
+    component: api
+spec:
+  replicas: 3  # Horizontal scaling
+  selector:
+    matchLabels:
+      app: ai-job-agent
+      component: api
+  template:
+    metadata:
+      labels:
+        app: ai-job-agent
+        component: api
+    spec:
+      containers:
+      - name: api
+        image: ai-job-agent:latest
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ai-job-agent-config
+        - secretRef:
+            name: ai-job-agent-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+---
+# ==================== API SERVICE ====================
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: ai-job-agent
+spec:
+  selector:
+    app: ai-job-agent
+    component: api
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+  type: ClusterIP
+
+---
+# ==================== API HORIZONTAL POD AUTOSCALER ====================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-hpa
+  namespace: ai-job-agent
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# ==================== CELERY WORKER DEPLOYMENT ====================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: ai-job-agent
+  labels:
+    app: ai-job-agent
+    component: worker
+spec:
+  replicas: 5  # Multiple workers for parallel processing
+  selector:
+    matchLabels:
+      app: ai-job-agent
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: ai-job-agent
+        component: worker
+    spec:
+      containers:
+      - name: worker
+        image: ai-job-agent:latest
+        command: ["celery", "-A", "infrastructure.tasks", "worker", "--loglevel=info"]
+        envFrom:
+        - configMapRef:
+            name: ai-job-agent-config
+        - secretRef:
+            name: ai-job-agent-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+
+---
+# ==================== CELERY BEAT (SCHEDULER) ====================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: ai-job-agent
+  labels:
+    app: ai-job-agent
+    component: beat
+spec:
+  replicas: 1  # Only one beat scheduler
+  selector:
+    matchLabels:
+      app: ai-job-agent
+      component: beat
+  template:
+    metadata:
+      labels:
+        app: ai-job-agent
+        component: beat
+    spec:
+      containers:
+      - name: beat
+        image: ai-job-agent:latest
+        command: ["celery", "-A", "infrastructure.tasks", "beat", "--loglevel=info"]
+        envFrom:
+        - configMapRef:
+            name: ai-job-agent-config
+        - secretRef:
+            name: ai-job-agent-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+# ==================== REDIS DEPLOYMENT ====================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: ai-job-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+# ==================== REDIS SERVICE ====================
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: ai-job-agent
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+
+---
+# ==================== REDIS PVC ====================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: ai-job-agent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# ==================== INGRESS ====================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-job-agent-ingress
+  namespace: ai-job-agent
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+spec:
+  tls:
+  - hosts:
+    - api.ai-job-agent.com
+    secretName: ai-job-agent-tls
+  rules:
+  - host: api.ai-job-agent.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api
+            port:
+              number: 80
+
+---
+# ==================== PROMETHEUS SERVICE MONITOR ====================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-job-agent-metrics
+  namespace: ai-job-agent
+spec:
+  selector:
+    matchLabels:
+      app: ai-job-agent
+      component: api
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+
+---
+# ==================== NETWORK POLICY ====================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-job-agent-netpol
+  namespace: ai-job-agent
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-job-agent
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443  # External APIs

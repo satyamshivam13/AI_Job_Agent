@@ -1,0 +1,21 @@
+[run]
+source = auth, infrastructure, models, config, workers, api
+omit =
+    api/main_v2.py
+    workers/__init__.py
+    workers/__init___pkg.py
+    config/prompts.py
+    */__pycache__/*
+    */test_*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    pass
+    \.\.\.$
+
+[html]
+directory = htmlcov

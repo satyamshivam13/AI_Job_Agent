@@ -1,0 +1,279 @@
+{
+  "user_profile": {
+    "personal_info": {
+      "name": "Satyam Shivam",
+      "email": "shivamsatyam35@gmail.com",
+      "phone": "+91 9852015381",
+      "location": "New Delhi, India",
+      "linkedin": "https://linkedin.com/in/satyam-shivam",
+      "github": "https://github.com/satyam-shivam",
+      "portfolio": "https://satyam-portfolio.com"
+    },
+    
+    "target_roles": [
+      "AI Engineer",
+      "Machine Learning Engineer",
+      "GenAI Developer",
+      "LLM Engineer",
+      "AI Researcher",
+      "MLOps Engineer"
+    ],
+    
+    "skills": {
+      "primary": [
+        "LangChain",
+        "RAG (Retrieval Augmented Generation)",
+        "OpenAI API",
+        "CrewAI",
+        "Prompt Engineering",
+        "FastAPI",
+        "Python",
+        "Docker",
+        "AWS"
+      ],
+      "secondary": [
+        "PostgreSQL",
+        "FAISS",
+        "ChromaDB",
+        "Pinecone",
+        "React",
+        "Node.js",
+        "Git",
+        "CI/CD",
+        "Microservices"
+      ],
+      "frameworks": [
+        "LangChain",
+        "PyTorch",
+        "TensorFlow",
+        "Scikit-learn",
+        "Pandas",
+        "NumPy"
+      ],
+      "cloud_platforms": [
+        "AWS (EC2, S3, Lambda)",
+        "Google Cloud",
+        "Azure"
+      ]
+    },
+    
+    "experience": {
+      "level": "entry_level",
+      "years": 2,
+      "specialization": "AI/ML, GenAI, LLM Applications"
+    },
+    
+    "education": {
+      "degree": "B.Tech in Computer Science & Engineering",
+      "specialization": "AI & ML",
+      "institution": "United Institute of Technology",
+      "graduation_year": 2026,
+      "gpa": null
+    },
+    
+    "location_preferences": {
+      "preferred_locations": [
+        "Remote",
+        "New Delhi",
+        "Bangalore",
+        "Hyderabad",
+        "Pune",
+        "Mumbai"
+      ],
+      "willing_to_relocate_countries": [
+        "United States",
+        "Canada",
+        "United Kingdom",
+        "Germany",
+        "Netherlands",
+        "Singapore",
+        "Australia"
+      ],
+      "remote_preference": "preferred"
+    },
+    
+    "compensation": {
+      "minimum_salary": {
+        "usd": 80000,
+        "inr": 800000,
+        "eur": 70000
+      },
+      "preferred_salary": {
+        "usd": 120000,
+        "inr": 1200000,
+        "eur": 100000
+      },
+      "currency_preference": "USD",
+      "negotiable": true
+    },
+    
+    "work_authorization": {
+      "countries_authorized": ["India"],
+      "requires_visa_sponsorship": true,
+      "has_valid_work_permit": {
+        "india": true,
+        "usa": false,
+        "canada": false,
+        "uk": false
+      }
+    },
+    
+    "job_preferences": {
+      "job_types": [
+        "full_time",
+        "contract"
+      ],
+      "company_sizes": [
+        "startup",
+        "mid_size",
+        "enterprise"
+      ],
+      "company_stages": [
+        "seed",
+        "series_a",
+        "series_b",
+        "series_c",
+        "public"
+      ],
+      "industries": [
+        "AI/ML",
+        "SaaS",
+        "FinTech",
+        "HealthTech",
+        "EdTech",
+        "Enterprise Software"
+      ],
+      "work_culture": [
+        "innovative",
+        "fast_paced",
+        "collaborative",
+        "learning_focused"
+      ]
+    },
+    
+    "availability": {
+      "start_date": "2 weeks notice",
+      "notice_period_days": 14,
+      "available_for_interviews": true,
+      "preferred_interview_times": [
+        "weekday_evenings",
+        "weekends"
+      ]
+    },
+    
+    "screening_answers": {
+      "years_of_experience": "2 years",
+      "proficiency_level": "intermediate_to_advanced",
+      "why_interested": "Passionate about building production-grade AI systems that solve real-world problems. Experienced in RAG pipelines and multi-agent systems.",
+      "availability": "Available to start in 2 weeks with proper notice to current employer",
+      "salary_expectations": "Competitive market rate for AI Engineer with 2 years experience. Open to discussion based on role and growth opportunities.",
+      "work_from_home": "Prefer remote or hybrid work arrangements",
+      "willing_to_travel": "Yes, up to 25% for client meetings or team collaboration"
+    },
+    
+    "cover_letter_template": {
+      "opening_style": "enthusiastic_professional",
+      "highlight_projects": true,
+      "mention_company_research": true,
+      "length": "medium",
+      "tone": "professional_yet_personable"
+    },
+    
+    "application_settings": {
+      "auto_apply_enabled": false,
+      "require_human_approval": true,
+      "max_applications_per_day": 50,
+      "max_applications_per_platform": 20,
+      "minimum_match_score": 75,
+      "apply_to_easy_apply_only": false,
+      "skip_company_blacklist": [
+        "Example Corp (had bad experience)"
+      ],
+      "priority_companies": [
+        "OpenAI",
+        "Anthropic",
+        "Google DeepMind",
+        "Microsoft Research",
+        "Meta AI"
+      ]
+    },
+    
+    "resume_preferences": {
+      "variant_preference": "balanced",
+      "include_sections": [
+        "summary",
+        "skills",
+        "experience",
+        "projects",
+        "education"
+      ],
+      "exclude_certifications": false,
+      "emphasize_metrics": true,
+      "ats_optimization_level": "high"
+    },
+    
+    "notification_preferences": {
+      "email_notifications": true,
+      "slack_notifications": false,
+      "daily_summary": true,
+      "interview_alerts": true,
+      "offer_alerts": true,
+      "rejection_alerts": false
+    }
+  },
+  
+  "resume_content": {
+    "professional_summary": "AI Engineer specializing in production RAG systems, LangChain pipelines, and FastAPI backends. Built scalable GenAI applications processing 1M+ tokens with 89% retrieval accuracy. Strong foundation in FAISS, ChromaDB, and multi-agent AI systems deployed on AWS.",
+    
+    "key_achievements": [
+      "Engineered embedding pipeline improving medical query response relevance by 23%",
+      "Built context-aware response modules reducing hallucination rate from 18% to 11%",
+      "Architected production RAG pipeline with 91% accuracy, cutting support tickets by 35%",
+      "Optimized query latency by 79% (8.2s to 1.7s) via caching and parallel embedding",
+      "Reduced Docker image size by 60% (2.1 GB to 840 MB)",
+      "Deployed containerized ML services handling 500+ daily requests at 99.5% uptime",
+      "Automated CI/CD cutting deployment time by 87.5% (2 hrs to 15 min)"
+    ],
+    
+    "projects_detail": [
+      {
+        "name": "Production RAG Pipeline",
+        "description": "Engineered scalable RAG system processing 1M+ tokens with hybrid retrieval, achieving 89% relevance with 850ms latency and 6% hallucination rate through cross-encoder reranking and parallel async processing",
+        "technologies": ["LangChain", "FAISS", "FastAPI", "ChromaDB", "Docker", "OpenAI API"],
+        "highlights": [
+          "89% relevance score (vs 67% baseline)",
+          "850ms average latency",
+          "91% top-3 hit rate",
+          "6% hallucination rate"
+        ]
+      },
+      {
+        "name": "Multi-Agent Marketing Campaign Creator",
+        "description": "Built autonomous 4-agent system generating full campaigns in 3-5 minutes versus 2-3 human days, reducing cost by 94% ($2,400 to $150) with 92% test coverage",
+        "technologies": ["Python", "CrewAI", "Groq API", "Pydantic", "pytest"],
+        "highlights": [
+          "3-5 minute generation time",
+          "94% cost reduction",
+          "92% test coverage",
+          "Modular CrewAI orchestration"
+        ]
+      },
+      {
+        "name": "HybridAI Syntax Error Detection",
+        "description": "Designed dual-mode detection engine combining AST parsing with GPT-4 fallback, reducing debugging time by 40% and improving fix success rate from 62% to 88%",
+        "technologies": ["Python AST Parser", "OpenAI GPT-4", "pytest"],
+        "highlights": [
+          "40% faster debugging",
+          "88% fix success rate",
+          "Hybrid rule-based + AI approach"
+        ]
+      }
+    ]
+  },
+  
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2024-01-15",
+    "created_by": "ai-job-agent-system"
+  }
+}

@@ -1,0 +1,107 @@
+# ==================== CORE FRAMEWORK ====================
+fastapi==0.115.5
+uvicorn[standard]==0.34.0
+pydantic==2.10.3
+python-multipart==0.0.20
+
+# ==================== DATABASE ====================
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+
+# ==================== CACHING & QUEUE ====================
+redis==5.2.1
+celery[redis]==5.4.0
+flower==2.0.1  # Celery monitoring
+
+# ==================== AI & LLM ====================
+crewai==0.70.1
+langchain==0.3.13
+langchain-community==0.3.13
+langchain-groq==0.2.1
+langchain-openai==0.2.14
+groq==0.11.0
+openai==1.58.1
+anthropic==0.42.0
+voyageai==0.2.5
+
+# ==================== BROWSER AUTOMATION ====================
+playwright==1.48.0
+selenium==4.27.1
+
+# ==================== WEB SCRAPING ====================
+beautifulsoup4==4.12.3
+lxml==5.3.0
+requests==2.32.3
+httpx==0.28.1
+
+# ==================== DOCUMENT PROCESSING ====================
+python-docx==1.1.2
+pypdf2==3.0.1
+openpyxl==3.1.5
+pandas==2.2.3
+python-pptx==1.0.2
+
+# ==================== SECURITY & AUTH ====================
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+cryptography==44.0.0
+pyjwt==2.10.1
+
+# ==================== INPUT VALIDATION ====================
+bleach==6.2.0
+email-validator==2.2.0
+
+# ==================== MONITORING & OBSERVABILITY ====================
+prometheus-client==0.21.0
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0
+opentelemetry-instrumentation-sqlalchemy==0.50b0
+opentelemetry-instrumentation-redis==0.50b0
+opentelemetry-exporter-prometheus==0.50b0
+structlog==24.4.0
+sentry-sdk[fastapi]==2.19.2
+
+# ==================== TESTING ====================
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+httpx==0.28.1  # For TestClient
+locust==2.32.4  # Load testing
+faker==33.1.0  # Test data generation
+
+# ==================== CODE QUALITY ====================
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0
+isort==5.13.2
+pylint==3.3.2
+pre-commit==4.0.1
+
+# ==================== UTILITIES ====================
+python-dotenv==1.0.1
+pyyaml==6.0.2
+click==8.1.8
+rich==13.9.4
+tqdm==4.67.1
+python-dateutil==2.9.0.post0
+
+# ==================== DEPLOYMENT ====================
+gunicorn==23.0.0
+supervisor==4.2.5
+
+# ==================== CLOUD & INFRASTRUCTURE ====================
+boto3==1.35.94  # AWS
+google-cloud-storage==2.19.0  # GCP
+azure-storage-blob==12.24.0  # Azure
+
+# ==================== ADDITIONAL TOOLS ====================
+aiofiles==24.1.0
+jinja2==3.1.5
+pillow==11.0.0
+numpy==2.2.1
+schedule==1.2.2

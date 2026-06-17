@@ -1,0 +1,91 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+  JWT_SECRET_KEY: "ci-test-secret-key-not-for-production-use"
+  DATABASE_URL: "sqlite:///./test.db"
+  ENVIRONMENT: "test"
+
+jobs:
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install fastapi uvicorn redis celery sqlalchemy pydantic \
+                      python-jose passlib bcrypt prometheus-client structlog \
+                      bleach email-validator groq openai anthropic \
+                      pytest pytest-asyncio pytest-cov httpx alembic
+      - name: Run migrations
+        run: alembic upgrade head
+      - name: Run tests
+        run: |
+          pytest tests/test_runnable.py tests/test_suite.py \
+            --cov=auth --cov=infrastructure --cov=models \
+            --cov=config --cov=workers --cov=api/main.py \
+            --cov-config=.coveragerc \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term \
+            --cov-fail-under=60 \
+            -v
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install flake8 black isort
+      - run: flake8 auth/ infrastructure/ api/ workers/ --max-line-length=100 --extend-ignore=E501,W503 --exclude=__pycache__
+      - run: black --check auth/ infrastructure/ api/ workers/ --line-length=100 --quiet
+      - run: isort --check-only auth/ infrastructure/ api/ workers/ --quiet
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install bandit safety
+      - run: bandit -r auth/ infrastructure/ api/ workers/ -ll -q
+      - run: safety check -r requirements_production.txt --continue-on-error
+
+  build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ai-job-agent:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -113,26 +113,26 @@ class FormFillingEngine:
         
         try:
             # Navigate to job page
-            await self.page.goto(job_url, wait_until="networkidle", timeout=30000)
+            await self.page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
             await self._random_delay(2000, 4000)
-            
+
             # Take screenshot of initial page
             screenshot_path = await self._take_screenshot('initial_page')
             result['screenshots'].append(screenshot_path)
-            
+
             # Detect and click "Apply" button
             apply_button = await self._find_apply_button()
-            
+
             if not apply_button:
                 result['status'] = 'failed'
                 result['errors'].append('Could not find Apply button')
                 return result
-            
+
             await apply_button.click()
             await asyncio.sleep(2)
-            
+
             # Wait for form to load
-            await self.page.wait_for_load_state('networkidle')
+            await self.page.wait_for_load_state('domcontentloaded')
             
             # Detect form fields
             fields = await self._detect_form_fields()
@@ -186,7 +186,7 @@ class FormFillingEngine:
                     await asyncio.sleep(3)
                     
                     # Wait for confirmation
-                    await self.page.wait_for_load_state('networkidle', timeout=10000)
+                    await self.page.wait_for_load_state('domcontentloaded', timeout=10000)
                     
                     # Take confirmation screenshot
                     screenshot_path = await self._take_screenshot('confirmation')

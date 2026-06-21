@@ -63,7 +63,7 @@ class LinkedInScraper:
         try:
             logger.info("🔑 Logging into LinkedIn...")
             
-            await self.page.goto(f"{self.base_url}/login", wait_until="networkidle")
+            await self.page.goto(f"{self.base_url}/login", wait_until="domcontentloaded", timeout=30000)
             
             # Fill login form
             await self.page.fill('input#username', settings.linkedin_email)
@@ -118,7 +118,7 @@ class LinkedInScraper:
         params_str = '&'.join(f"{k}={quote_plus(str(v))}" for k, v in search_params.items() if v)
         search_url = f"{self.jobs_url}?{params_str}"
         
-        await self.page.goto(search_url, wait_until="networkidle")
+        await self.page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
         await self._random_delay()
         
         # Scroll to load more jobs

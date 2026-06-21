@@ -84,7 +84,7 @@ class IndeedScraper:
         params_str = '&'.join(f"{k}={quote_plus(str(v))}" for k, v in params.items() if v)
         full_url = f"{search_url}?{params_str}"
         
-        await self.page.goto(full_url, wait_until="networkidle")
+        await self.page.goto(full_url, wait_until="domcontentloaded", timeout=60000)
         await self._random_delay()
         
         # Pagination
@@ -200,7 +200,7 @@ class IndeedScraper:
         try:
             # Open in new page to avoid losing search results
             new_page = await self.browser.new_page()
-            await new_page.goto(job_url, wait_until="networkidle", timeout=10000)
+            await new_page.goto(job_url, wait_until="domcontentloaded", timeout=20000)
             
             # Extract description
             desc_elem = await new_page.query_selector('#jobDescriptionText')

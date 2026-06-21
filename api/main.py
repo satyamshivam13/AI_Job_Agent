@@ -664,6 +664,9 @@ PIPELINE_LOG_PATH = Path("data/pipeline.log")
 
 
 def _resume_path(user_id: str) -> Path:
+    import re
+    if not re.fullmatch(r"[a-zA-Z0-9_\-]+", user_id):
+        raise ValueError(f"Invalid user_id: {user_id!r}")
     return Path("data") / "resumes" / f"{user_id}.json"
 # Single-worker deployment only — these variables are process-local.
 # With multiple workers (e.g. gunicorn -w N) each worker has an isolated copy,

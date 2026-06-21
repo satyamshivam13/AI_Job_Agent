@@ -147,6 +147,7 @@ class TestAIAgents:
         jobs = [sample_job]
         
         # Mock LLM response to avoid API calls in tests
+        assert crew.job_finder.agent.llm is not None
         with patch.object(crew.job_finder.agent.llm, 'invoke') as mock_llm:
             mock_llm.return_value = Mock(content='[{"job_id": "test123", "score": 85, "recommendation": "APPLY"}]')
             
@@ -162,6 +163,7 @@ class TestAIAgents:
         base_resume = "AI Engineer with LangChain experience."
         job_description = "Looking for AI Engineer with RAG and FastAPI experience."
         
+        assert crew.resume_optimizer.agent.llm is not None
         with patch.object(crew.resume_optimizer.agent.llm, 'invoke') as mock_llm:
             mock_llm.return_value = Mock(content='{"optimized_resume_text": "Updated resume", "ats_score_estimate": 85}')
             

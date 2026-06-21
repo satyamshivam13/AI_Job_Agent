@@ -379,8 +379,8 @@ class StructuredLogger:
         error_type: str,
         component: str,
         message: str,
-        exception: Exception = None,
-        user_id: str = None
+        exception: Optional[Exception] = None,
+        user_id: Optional[str] = None
     ):
         """Log error"""
         logger.error(
@@ -438,7 +438,7 @@ class AlertManager:
     SEVERITY_INFO = "info"
     
     @staticmethod
-    def send_alert(severity: str, message: str, component: str = None, **kwargs):
+    def send_alert(severity: str, message: str, component: Optional[str] = None, **kwargs):
         """Send alert to monitoring system"""
         alert_data = {
             "severity": severity,
@@ -468,8 +468,8 @@ class AlertManager:
         
         # Check database
         try:
-            from models.database import engine
-            with engine.connect() as conn:
+            from models.database import _get_engine
+            with _get_engine().connect() as conn:
                 conn.execute("SELECT 1")
             health["checks"]["database"] = "healthy"
         except Exception as e:

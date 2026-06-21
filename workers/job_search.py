@@ -5,7 +5,7 @@ Celery task for async job searching across platforms
 from infrastructure.tasks import celery_app, BaseTask
 from infrastructure.cache import JobSearchCache
 from infrastructure.monitoring import structured_logger
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 import asyncio
 
@@ -14,10 +14,10 @@ import asyncio
 def search_jobs_task(
     self,
     query: str,
-    location: str = None,
+    location: Optional[str] = None,
     remote: bool = False,
     limit: int = 50,
-    user_id: str = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search for jobs across platforms with caching."""
     start = datetime.now(timezone.utc)
@@ -55,7 +55,7 @@ async def _search_async(query, location, remote, limit, user_id) -> List[Dict]:
         from services.scraper.linkedin import LinkedInScraper
         scraper = LinkedInScraper()
         await scraper.initialize()
-        jobs = await scraper.search(query, location, limit=limit)
+        jobs = await scraper.search_jobs(query, location or "Remote", max_results=limit)
         await scraper.close()
         return jobs
     except Exception:

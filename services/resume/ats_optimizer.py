@@ -4,6 +4,7 @@ Creates tailored resumes in DOCX format optimized for ATS parsing
 """
 
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from typing import Dict, List, Optional
@@ -46,7 +47,7 @@ class ATSResumeEngine:
                                 job_description: str,
                                 job_title: str,
                                 keywords: List[str],
-                                variant: str = 'balanced') -> tuple[Document, Dict]:
+                                variant: str = 'balanced') -> tuple[DocxDocument, Dict]:
         """
         Generate ATS-optimized resume tailored to job
         
@@ -169,7 +170,7 @@ class ATSResumeEngine:
         optimized['keywords_added'] = keywords_added
         return optimized
     
-    def _add_header(self, doc: Document, data: Dict):
+    def _add_header(self, doc: DocxDocument, data: Dict):
         """Add header with contact info"""
         # Name
         name_para = doc.add_paragraph()
@@ -199,7 +200,7 @@ class ATSResumeEngine:
         # Add spacing
         doc.add_paragraph()
     
-    def _add_summary(self, doc: Document, data: Dict, 
+    def _add_summary(self, doc: DocxDocument, data: Dict, 
                     job_title: str, keywords: List[str]):
         """Add professional summary"""
         summary_text = data.get('summary', '')
@@ -214,7 +215,7 @@ class ATSResumeEngine:
             self._set_font(para)
             doc.add_paragraph()
     
-    def _add_skills(self, doc: Document, data: Dict, keywords: List[str]):
+    def _add_skills(self, doc: DocxDocument, data: Dict, keywords: List[str]):
         """Add skills section with categorization"""
         skills = data.get('skills', {})
         
@@ -243,7 +244,7 @@ class ATSResumeEngine:
         
         doc.add_paragraph()
     
-    def _add_experience(self, doc: Document, data: Dict, keywords: List[str]):
+    def _add_experience(self, doc: DocxDocument, data: Dict, keywords: List[str]):
         """Add work experience"""
         experiences = data.get('experience', [])
         
@@ -275,7 +276,7 @@ class ATSResumeEngine:
             
             doc.add_paragraph()  # Spacing between jobs
     
-    def _add_projects(self, doc: Document, data: Dict, keywords: List[str]):
+    def _add_projects(self, doc: DocxDocument, data: Dict, keywords: List[str]):
         """Add projects section"""
         projects = data.get('projects', [])
         
@@ -303,7 +304,7 @@ class ATSResumeEngine:
         
         doc.add_paragraph()
     
-    def _add_education(self, doc: Document, data: Dict):
+    def _add_education(self, doc: DocxDocument, data: Dict):
         """Add education section"""
         education = data.get('education', [])
         
@@ -330,7 +331,7 @@ class ATSResumeEngine:
                 detail_para = doc.add_paragraph(' • '.join(details))
                 self._set_font(detail_para, size=10, italic=True)
     
-    def _add_section_heading(self, doc: Document, heading: str):
+    def _add_section_heading(self, doc: DocxDocument, heading: str):
         """Add section heading in ATS-friendly format"""
         para = doc.add_paragraph(heading)
         run = para.runs[0]
@@ -350,7 +351,7 @@ class ATSResumeEngine:
             run.font.bold = bold
             run.font.italic = italic
     
-    def _calculate_ats_score(self, doc: Document, job_desc: str, 
+    def _calculate_ats_score(self, doc: DocxDocument, job_desc: str, 
                             keywords: List[str]) -> float:
         """
         Calculate ATS compatibility score (0-100)
@@ -395,7 +396,7 @@ class ATSResumeEngine:
         total_score = keyword_score + format_score
         return min(total_score, 100)
     
-    def save_resume(self, doc: Document, filepath: str):
+    def save_resume(self, doc: DocxDocument, filepath: str):
         """Save resume to file"""
         doc.save(filepath)
         logger.info(f"✓ Resume saved to {filepath}")

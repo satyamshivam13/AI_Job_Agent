@@ -14,7 +14,7 @@ def generate_resume_task(
     self,
     job_id: str,
     variant: str = "balanced",
-    user_id: str = None,
+    user_id: Optional[str] = None,
     custom_skills: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Generate ATS-optimised resume for a job."""
@@ -63,7 +63,7 @@ async def _generate_async(job_id, variant, user_id, custom_skills) -> Dict[str, 
 
             base_resume = user_profile.get("base_resume", "")
             agent = ResumeOptimizerAgent()
-            result = agent.optimize_resume(base_resume, job.description or "", variant)
+            result = agent.optimize_resume(base_resume, str(job.description) if job.description is not None else "", variant)
             ats_score = result.get("ats_score_estimate", 75)
         except Exception:
             ats_score = 75.0

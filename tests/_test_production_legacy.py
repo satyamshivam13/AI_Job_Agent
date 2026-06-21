@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch, MagicMock
 import asyncio
 from datetime import datetime
 from typing import Generator
+from models.database import get_db
 
 # Test database setup
 TEST_DATABASE_URL = "sqlite:///./test.db"
@@ -367,7 +368,7 @@ class TestJobSearch:
                 }
             ]
             
-            jobs = await scraper.search("AI Engineer", location="Remote")
+            jobs = await scraper.search_jobs(keywords="AI Engineer", location="Remote")
             
             assert len(jobs) == 1
             assert jobs[0]["title"] == "AI Engineer"
@@ -392,7 +393,7 @@ class TestResumeGeneration:
     @pytest.mark.asyncio
     async def test_ats_optimization(self, mock_llm):
         """Test ATS optimization"""
-        from services.resume.ats_optimizer import ATSOptimizer
+        from services.resume.ats_optimizer import ATSResumeEngine as ATSOptimizer
         
         optimizer = ATSOptimizer()
         
@@ -411,7 +412,7 @@ class TestResumeGeneration:
     
     def test_keyword_extraction(self):
         """Test keyword extraction from job description"""
-        from services.resume.ats_optimizer import ATSOptimizer
+        from services.resume.ats_optimizer import ATSResumeEngine as ATSOptimizer
         
         optimizer = ATSOptimizer()
         
@@ -552,7 +553,7 @@ class TestAISystem:
         manager = PromptManager()
         
         prompt_v1 = "Generate resume for {job_title}"
-        manager.save_prompt("resume_gen", prompt_v1, version="1.0.0")
+        manager.save_prompt("resume_gen", prompt_v1, version="1.0.0", variables=[])
         
         retrieved = manager.get_prompt("resume_gen", version="1.0.0")
         assert retrieved == prompt_v1
@@ -566,9 +567,9 @@ class TestAISystem:
         
         tracker.record_usage(
             model="gpt-4",
+            provider="openai",
             prompt_tokens=100,
             completion_tokens=50,
-            cost_usd=0.01
         )
         
         total_cost = tracker.get_total_cost()

@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime, timezone
 import enum
+from typing import Dict, Any
 
 
 Base = declarative_base()
@@ -370,11 +371,11 @@ class Resume(Base):
         return {
             "id": str(self.id),
             "user_id": self.user_id,
-            "job_id": str(self.job_id) if self.job_id else None,
+            "job_id": str(self.job_id) if self.job_id is not None else None,
             "variant": self.variant,
             "ats_score": self.ats_score,
             "keyword_match": self.keyword_match,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
         }
 
 
@@ -452,7 +453,7 @@ def _get_engine():
     if _engine is None:
         db_url = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
         is_sqlite = db_url.startswith("sqlite")
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "connect_args": {"check_same_thread": False} if is_sqlite else {},
         }
         if is_sqlite:

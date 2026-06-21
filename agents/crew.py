@@ -92,6 +92,18 @@ class JobFinderAgent:
             expected_output="JSON array of scored jobs with recommendations"
         )
     
+    def calculate_match_score(self, job: Dict, user_skills: List[str]) -> float:
+        """Keyword-based match score (0–100) without LLM, for fast pre-filtering."""
+        if not user_skills:
+            return 0.0
+        text = " ".join([
+            job.get("title", ""),
+            job.get("description", ""),
+            job.get("company", ""),
+        ]).lower()
+        matched = sum(1 for skill in user_skills if skill.lower() in text)
+        return round(min(matched / len(user_skills) * 100, 100), 1)
+
     def score_jobs(self, jobs: List[Dict], user_profile: Dict) -> List[Dict]:
         """Score and rank jobs"""
         task = self.create_task(jobs, user_profile)

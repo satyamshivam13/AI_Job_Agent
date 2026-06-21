@@ -3,8 +3,8 @@ Locust Load Testing Configuration
 Run: locust -f tests/locustfile.py --host http://localhost:8000
 """
 
-from locust import HttpUser, task, between, events
-from locust.runners import MasterRunner
+from locust import HttpUser, task, between, events  # type: ignore[import-untyped]
+from locust.runners import MasterRunner  # type: ignore[import-untyped]
 import json
 import random
 import time

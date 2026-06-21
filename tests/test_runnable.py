@@ -60,7 +60,7 @@ class TestInputValidation:
 
     def test_job_search_request_valid(self):
         from auth.validation import JobSearchRequest
-        req = JobSearchRequest(query="AI Engineer", location="Remote", limit=20)
+        req = JobSearchRequest(query="AI Engineer", location="Remote", remote=False, limit=20)
         assert req.query == "AI Engineer"
         assert req.limit == 20
 
@@ -68,19 +68,19 @@ class TestInputValidation:
         from auth.validation import JobSearchRequest
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
-            JobSearchRequest()  # missing query
+            JobSearchRequest()  # type: ignore[call-arg]  # missing query
 
     def test_job_search_limit_bounds(self):
         from auth.validation import JobSearchRequest
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
-            JobSearchRequest(query="test", limit=0)   # too low
+            JobSearchRequest(query="test", remote=False, limit=0)   # too low
         with pytest.raises(ValidationError):
-            JobSearchRequest(query="test", limit=1000) # too high
+            JobSearchRequest(query="test", remote=False, limit=1000) # too high
 
     def test_pagination_defaults(self):
         from auth.validation import PaginationParams
-        p = PaginationParams()
+        p = PaginationParams()  # type: ignore[call-arg]
         assert p.page == 1
         assert p.page_size == 50  # actual default in PaginationParams
 
@@ -180,7 +180,8 @@ class TestDatabaseModels:
         self.session.add(job)
         self.session.commit()
         retrieved = self.session.query(Job).filter_by(company="TechCorp").first()
-        assert retrieved.title == "AI Engineer"
+        assert retrieved is not None
+        assert retrieved.title == "AI Engineer"  # type: ignore[truthy-bool]
         assert retrieved.applied is False
 
     def test_job_to_dict(self):
@@ -209,7 +210,8 @@ class TestDatabaseModels:
         self.session.add(r)
         self.session.commit()
         found = self.session.query(Resume).filter_by(user_id="user_abc").first()
-        assert found.ats_score == 82.5
+        assert found is not None
+        assert found.ats_score == 82.5  # type: ignore[truthy-bool]
 
     def test_resume_to_dict(self):
         from models.database import Resume
@@ -231,8 +233,9 @@ class TestDatabaseModels:
         self.session.add(u)
         self.session.commit()
         found = self.session.query(User).filter_by(username="satyam").first()
-        assert found.email == "satyam@example.com"
-        assert "user" in found.roles
+        assert found is not None
+        assert found.email == "satyam@example.com"  # type: ignore[truthy-bool]
+        assert "user" in found.roles  # type: ignore[operator]
 
     def test_application_status_enum(self):
         from models.database import ApplicationStatus
@@ -251,7 +254,8 @@ class TestDatabaseModels:
         self.session.add(a)
         self.session.commit()
         found = self.session.query(Analytics).first()
-        assert found.jobs_scraped == 100
+        assert found is not None
+        assert found.jobs_scraped == 100  # type: ignore[truthy-bool]
 
 
 # ==================== USER PROFILE TESTS ====================
@@ -785,10 +789,10 @@ class TestAuthenticatedAPIFlow:
         live_client.get("/health")
         # Verify counter exists and has been incremented
         try:
-            samples = list(REGISTRY.get_sample_value(
+            _sample_val = REGISTRY.get_sample_value(
                 "http_requests_total",
                 {"method": "GET", "endpoint": "/health", "status": "200"}
-            ) or [0])
+            )
             # If we got here without error, metric is being emitted
             assert True
         except Exception:
@@ -917,6 +921,7 @@ class TestWorkerLogic:
                 return {"status": "success", "jobs": cached, "cached": True}
 
         result = asyncio.run(run())
+        assert result is not None
         assert result["cached"] is True
         assert len(result["jobs"]) == 1
 

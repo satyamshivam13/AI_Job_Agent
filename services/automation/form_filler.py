@@ -4,7 +4,7 @@ Handles form filling and application submission using Playwright
 """
 
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import asyncio
 import random
 from datetime import datetime, timezone
@@ -112,6 +112,7 @@ class FormFillingEngine:
         }
         
         try:
+            assert self.page is not None
             # Navigate to job page
             await self.page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
             await self._random_delay(2000, 4000)
@@ -221,8 +222,9 @@ class FormFillingEngine:
     
     async def _detect_form_fields(self) -> Dict[str, List[str]]:
         """Detect form fields on the page"""
+        assert self.page is not None
         detected_fields = {}
-        
+
         # Get all input, select, and textarea elements
         elements = await self.page.query_selector_all('input, select, textarea')
         
@@ -263,10 +265,11 @@ class FormFillingEngine:
         
         return detected_fields
     
-    async def _fill_field(self, selector: str, field_type: str, 
-                         user_data: Dict, resume_path: str, 
+    async def _fill_field(self, selector: str, field_type: str,
+                         user_data: Dict, resume_path: str,
                          cover_letter_text: str) -> bool:
         """Fill a specific form field"""
+        assert self.page is not None
         element = await self.page.query_selector(selector)
         
         if not element:
@@ -348,8 +351,9 @@ class FormFillingEngine:
             logger.debug(f"Error filling {field_type}: {str(e)}")
             return False
     
-    async def _find_apply_button(self) -> Optional:
+    async def _find_apply_button(self) -> Optional[Any]:
         """Find and return the Apply button"""
+        assert self.page is not None
         # Common apply button patterns
         patterns = [
             'button:has-text("Apply")',
@@ -360,7 +364,7 @@ class FormFillingEngine:
             '.apply-button',
             '#apply-button'
         ]
-        
+
         for pattern in patterns:
             button = await self.page.query_selector(pattern)
             if button:
@@ -368,8 +372,9 @@ class FormFillingEngine:
         
         return None
     
-    async def _find_submit_button(self) -> Optional:
+    async def _find_submit_button(self) -> Optional[Any]:
         """Find submit button"""
+        assert self.page is not None
         patterns = [
             'button[type="submit"]',
             'button:has-text("Submit")',
@@ -377,7 +382,7 @@ class FormFillingEngine:
             'button:has-text("Send Application")',
             'input[type="submit"]'
         ]
-        
+
         for pattern in patterns:
             button = await self.page.query_selector(pattern)
             if button:
@@ -387,6 +392,7 @@ class FormFillingEngine:
     
     async def _detect_captcha(self) -> bool:
         """Detect if CAPTCHA is present"""
+        assert self.page is not None
         captcha_indicators = [
             'iframe[src*="recaptcha"]',
             'iframe[src*="hcaptcha"]',
@@ -394,7 +400,7 @@ class FormFillingEngine:
             '.h-captcha',
             '[data-captcha]'
         ]
-        
+
         for indicator in captcha_indicators:
             element = await self.page.query_selector(indicator)
             if element:
@@ -404,8 +410,9 @@ class FormFillingEngine:
     
     async def _validate_form(self) -> List[str]:
         """Validate form before submission"""
+        assert self.page is not None
         errors = []
-        
+
         # Check for required unfilled fields
         required_fields = await self.page.query_selector_all('[required]:not([disabled])')
         
@@ -419,6 +426,7 @@ class FormFillingEngine:
     
     async def _check_success_confirmation(self) -> bool:
         """Check for success confirmation message"""
+        assert self.page is not None
         success_indicators = [
             'text=Application submitted',
             'text=Thank you for applying',
@@ -427,7 +435,7 @@ class FormFillingEngine:
             '.success-message',
             '[data-test="success"]'
         ]
-        
+
         for indicator in success_indicators:
             element = await self.page.query_selector(indicator)
             if element:
@@ -437,15 +445,16 @@ class FormFillingEngine:
     
     async def _take_screenshot(self, name: str) -> str:
         """Take screenshot for verification"""
+        assert self.page is not None
         timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         filename = f"{name}_{timestamp}.png"
         filepath = self.screenshots_dir / filename
-        
+
         await self.page.screenshot(path=str(filepath), full_page=True)
         
         return str(filepath)
     
-    async def _random_delay(self, min_ms: int = None, max_ms: int = None):
+    async def _random_delay(self, min_ms: Optional[int] = None, max_ms: Optional[int] = None):
         """Human-like delay"""
         min_ms = min_ms or settings.min_delay_between_actions
         max_ms = max_ms or settings.max_delay_between_actions

@@ -9,7 +9,7 @@ from infrastructure.monitoring import structured_logger
 from infrastructure.cache import JobSearchCache, LLMCache
 from infrastructure.ai_management import model_router, quality_evaluator, cost_tracker
 from infrastructure.reliability import retry, timeout, idempotent, scraping_bulkhead
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import asyncio
 from datetime import datetime, timezone
 
@@ -24,10 +24,10 @@ from datetime import datetime, timezone
 def search_jobs_task(
     self,
     query: str,
-    location: str = None,
+    location: Optional[str] = None,
     remote: bool = False,
     limit: int = 50,
-    user_id: str = None
+    user_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Search for jobs across platforms with caching and monitoring
@@ -95,7 +95,8 @@ async def _search_jobs_async(
     # Search LinkedIn
     try:
         linkedin = LinkedInScraper()
-        linkedin_jobs = await linkedin.search(query, location, limit=limit//2)
+        await linkedin.initialize()
+        linkedin_jobs = await linkedin.search_jobs(query, location or "Remote", max_results=limit//2)
         jobs.extend(linkedin_jobs)
     except Exception as e:
         structured_logger.log_error(
@@ -104,11 +105,12 @@ async def _search_jobs_async(
             message=str(e),
             exception=e
         )
-    
+
     # Search Indeed
     try:
         indeed = IndeedScraper()
-        indeed_jobs = await indeed.search(query, location, limit=limit//2)
+        await indeed.initialize()
+        indeed_jobs = await indeed.search_jobs(query, location or "Remote", max_results=limit//2)
         jobs.extend(indeed_jobs)
     except Exception as e:
         structured_logger.log_error(
@@ -176,10 +178,10 @@ def run_daily_search(self):
     Daily automated job search for all users
     Scheduled by Celery Beat
     """
-    from models.database import Session, User
-    
+    from models.database import SessionLocal as Session, User
+
     db = Session()
-    
+
     try:
         # Get all active users
         users = db.query(User).filter(User.is_active == True).all()
@@ -216,8 +218,8 @@ def generate_resume_task(
     self,
     job_id: str,
     variant: str = "balanced",
-    user_id: str = None,
-    custom_skills: List[str] = None
+    user_id: Optional[str] = None,
+    custom_skills: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """
     Generate ATS-optimized resume with quality evaluation
@@ -273,9 +275,9 @@ async def _generate_resume_async(
     custom_skills: List[str]
 ) -> Dict[str, Any]:
     """Generate resume with AI"""
-    from models.database import Session, Job
+    from models.database import SessionLocal as Session, Job
     from config.user_profile import get_user_profile
-    from services.resume.ats_optimizer import ATSOptimizer
+    from services.resume.ats_optimizer import ATSResumeEngine as ATSOptimizer
     
     db = Session()
     
@@ -331,19 +333,19 @@ async def _generate_resume_async(
             job_id=job_id,
             variant=variant,
             content=resume_text,
-            ats_score=metrics.ats_score * 100,
-            keyword_match=metrics.keyword_match * 100
+            ats_score=(metrics.ats_score or 0) * 100,
+            keyword_match=(metrics.keyword_match or 0) * 100
         )
-        
+
         db.add(resume)
         db.commit()
-        
+
         return {
             "status": "success",
             "resume_id": resume.id,
-            "ats_score": metrics.ats_score * 100,
-            "keyword_match": metrics.keyword_match * 100,
-            "overall_quality": metrics.overall_score * 100,
+            "ats_score": (metrics.ats_score or 0) * 100,
+            "keyword_match": (metrics.keyword_match or 0) * 100,
+            "overall_quality": (metrics.overall_score or 0) * 100,
             "llm_cost": result["cost_usd"]
         }
         
@@ -363,8 +365,8 @@ def submit_application_task(
     self,
     job_id: str,
     resume_id: str,
-    cover_letter_id: str = None,
-    user_id: str = None
+    cover_letter_id: Optional[str] = None,
+    user_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Submit job application with browser automation
@@ -421,8 +423,8 @@ async def _submit_application_async(
     user_id: str
 ) -> Dict[str, Any]:
     """Submit application using browser automation"""
-    from models.database import Session, Job, Resume, Application
-    from services.automation.form_filler import FormFiller
+    from models.database import SessionLocal as Session, Job, Resume, Application
+    from services.automation.form_filler import FormFillingEngine as FormFiller
     
     db = Session()
     
@@ -494,10 +496,10 @@ def generate_metrics(self):
         llm_cache_hit_rate, cache_hit_rate
     )
     from infrastructure.cache import CacheMetrics
-    from models.database import Session, User
-    
+    from models.database import SessionLocal as Session, User
+
     db = Session()
-    
+
     try:
         # Active users (logged in within last hour)
         from datetime import timedelta
@@ -539,11 +541,11 @@ def cleanup_old_data(self):
     Cleanup old data from database
     Scheduled by Celery Beat at 2 AM daily
     """
-    from models.database import Session, Job
+    from models.database import SessionLocal as Session, Job
     from datetime import timedelta
-    
+
     db = Session()
-    
+
     try:
         # Delete jobs older than 30 days
         cutoff = datetime.now(timezone.utc) - timedelta(days=30)

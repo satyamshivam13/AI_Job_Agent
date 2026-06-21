@@ -67,8 +67,9 @@ class IndeedScraper:
         Returns:
             List of job dictionaries
         """
+        assert self.page is not None
         logger.info(f"🔍 Searching Indeed: {keywords} in {location}")
-        
+
         jobs = []
         
         # Build search URL
@@ -197,6 +198,7 @@ class IndeedScraper:
     
     async def _get_full_description(self, job_url: str) -> Optional[str]:
         """Visit job page to get full description"""
+        assert self.browser is not None
         try:
             # Open in new page to avoid losing search results
             new_page = await self.browser.new_page()
@@ -272,7 +274,7 @@ class IndeedScraper:
         except Exception:
             return None
     
-    async def _random_delay(self, min_ms: int = None, max_ms: int = None):
+    async def _random_delay(self, min_ms: Optional[int] = None, max_ms: Optional[int] = None):
         """Add random delay"""
         min_ms = min_ms or settings.min_delay_between_actions
         max_ms = max_ms or settings.max_delay_between_actions

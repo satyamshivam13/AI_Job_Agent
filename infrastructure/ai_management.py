@@ -450,6 +450,8 @@ class ModelRouter:
         usage = response.usage
         if usage is None:
             raise ValueError("No usage data in Groq response")
+        if not response.choices:
+            raise ValueError("Empty choices list in Groq response")
         return {
             "response": response.choices[0].message.content,
             "prompt_tokens": usage.prompt_tokens,
@@ -474,6 +476,8 @@ class ModelRouter:
         usage = response.usage
         if usage is None:
             raise ValueError("No usage data in OpenAI response")
+        if not response.choices:
+            raise ValueError("Empty choices list in OpenAI response")
         cost_usd = self.cost_tracker.calculate_cost(
             model=model,
             prompt_tokens=usage.prompt_tokens,

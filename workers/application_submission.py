@@ -30,13 +30,13 @@ def submit_application_task(
         structured_logger.log_application_submission(
             platform=result.get("platform", "unknown"),
             job_id=job_id, status="success",
-            duration=duration, user_id=user_id
+            duration=duration, user_id=user_id or ""
         )
         return result
     except Exception as exc:
         structured_logger.log_error(
             error_type="submission_failed", component="submit_application_task",
-            message=str(exc), exception=exc, user_id=user_id
+            message=str(exc), exception=exc, user_id=user_id or ""
         )
         raise self.retry(exc=exc, countdown=30, max_retries=2)
 

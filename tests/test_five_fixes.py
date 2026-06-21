@@ -226,7 +226,7 @@ class TestIPRateLimiter:
         with pytest.raises(HTTPException) as exc:
             asyncio.run(rl(req))
         assert exc.value.status_code == 429
-        assert "Retry-After" in exc.value.headers
+        assert exc.value.headers is not None and "Retry-After" in exc.value.headers
 
     def test_different_ips_tracked_separately(self):
         from auth.security import IPRateLimiter

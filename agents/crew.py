@@ -3,9 +3,7 @@ AI Agents Implementation using CrewAI
 Multi-agent system for autonomous job applications
 """
 
-from crewai import Agent, Task, Crew, Process
-from langchain_groq import ChatGroq
-from langchain_openai import ChatOpenAI
+from crewai import Agent, Task, Crew, Process, LLM
 from typing import Dict, List, Optional
 import json
 
@@ -15,25 +13,32 @@ from config.prompts import AGENT_PROMPTS
 
 class LLMFactory:
     """Factory for creating LLM instances based on configuration"""
-    
+
     @staticmethod
     def create_llm(provider: str = None, temperature: float = 0.7):
-        """Create LLM instance based on provider"""
+        """Create crewai-native LLM instance based on provider"""
         provider = provider or settings.llm_provider.value
-        
+
         if provider == "groq":
-            return ChatGroq(
+            return LLM(
+                model="groq/llama-3.3-70b-versatile",
                 api_key=settings.groq_api_key,
-                model_name="llama-3.1-70b-versatile",
                 temperature=temperature,
-                max_tokens=4096
+                max_tokens=4096,
             )
         elif provider == "openai":
-            return ChatOpenAI(
+            return LLM(
+                model="gpt-4o-mini",
                 api_key=settings.openai_api_key,
-                model_name="gpt-4o-mini",
                 temperature=temperature,
-                max_tokens=4096
+                max_tokens=4096,
+            )
+        elif provider == "anthropic":
+            return LLM(
+                model="anthropic/claude-haiku-4-5-20251001",
+                api_key=settings.anthropic_api_key,
+                temperature=temperature,
+                max_tokens=4096,
             )
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")

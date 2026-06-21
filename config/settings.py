@@ -251,7 +251,7 @@ settings = Settings()
 # Validate settings on startup
 validation_errors = settings.validate_required_settings()
 if validation_errors and not settings.is_testing:
-    print("⚠️  Configuration errors found:")
+    print("[WARN] Configuration errors found:")
     for error in validation_errors:
         print(f"  - {error}")
     print("\nPlease check your .env file and ensure all required variables are set.")

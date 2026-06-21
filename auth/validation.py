@@ -3,8 +3,8 @@ Production-Grade Input Validation & Sanitization
 Prevents SQL injection, XSS, and other injection attacks
 """
 
-from typing import Optional, List, Any
-from pydantic import BaseModel, validator, Field, constr, field_validator, model_validator
+from typing import Optional, List, Any, Annotated
+from pydantic import BaseModel, validator, Field, field_validator, model_validator
 from fastapi import HTTPException, status
 import re
 import bleach
@@ -129,19 +129,13 @@ class InputValidator:
 
 class JobSearchRequest(BaseModel):
     """Validated job search request"""
-    query: constr(min_length=1, max_length=200) = Field(
-        ...,
-        description="Search query"
-    )
-    location: Optional[constr(max_length=100)] = Field(
-        None,
-        description="Job location"
-    )
+    query: Annotated[str, Field(min_length=1, max_length=200, description="Search query")]
+    location: Optional[Annotated[str, Field(max_length=100)]] = Field(None, description="Job location")
     remote: Optional[bool] = Field(
         False,
         description="Remote jobs only"
     )
-    experience_level: Optional[constr(max_length=50)] = None
+    experience_level: Optional[Annotated[str, Field(max_length=50)]] = None
     limit: Optional[int] = Field(
         50,
         ge=1,
@@ -168,9 +162,9 @@ class JobSearchRequest(BaseModel):
 
 class ResumeGenerationRequest(BaseModel):
     """Validated resume generation request"""
-    job_id: constr(min_length=1, max_length=100)
-    variant: Optional[constr(max_length=50)] = "balanced"
-    custom_skills: Optional[List[constr(max_length=100)]] = None
+    job_id: Annotated[str, Field(min_length=1, max_length=100)]
+    variant: Optional[Annotated[str, Field(max_length=50)]] = "balanced"
+    custom_skills: Optional[List[Annotated[str, Field(max_length=100)]]] = None
     
     @field_validator('job_id')
     def validate_job_id(cls, v):
@@ -190,10 +184,10 @@ class ResumeGenerationRequest(BaseModel):
 
 class ApplicationRequest(BaseModel):
     """Validated application submission request"""
-    job_id: constr(min_length=1, max_length=100)
-    resume_id: constr(min_length=1, max_length=100)
-    cover_letter_id: Optional[constr(max_length=100)] = None
-    additional_info: Optional[constr(max_length=1000)] = None
+    job_id: Annotated[str, Field(min_length=1, max_length=100)]
+    resume_id: Annotated[str, Field(min_length=1, max_length=100)]
+    cover_letter_id: Optional[Annotated[str, Field(max_length=100)]] = None
+    additional_info: Optional[Annotated[str, Field(max_length=1000)]] = None
     
     @field_validator('job_id', 'resume_id', 'cover_letter_id')
     def validate_ids(cls, v):
@@ -217,8 +211,8 @@ class UserProfileUpdate(BaseModel):
     """Validated user profile update"""
     email: Optional[str] = None
     phone: Optional[str] = None
-    location: Optional[constr(max_length=100)] = None
-    skills: Optional[List[constr(max_length=100)]] = None
+    location: Optional[Annotated[str, Field(max_length=100)]] = None
+    skills: Optional[List[Annotated[str, Field(max_length=100)]]] = None
     experience_years: Optional[int] = Field(None, ge=0, le=50)
     
     @field_validator('email')
@@ -256,8 +250,8 @@ class PaginationParams(BaseModel):
     """Validated pagination parameters"""
     page: int = Field(1, ge=1, le=1000, description="Page number")
     page_size: int = Field(50, ge=1, le=100, description="Items per page")
-    sort_by: Optional[constr(max_length=50)] = None
-    sort_order: Optional[constr(max_length=4)] = "desc"
+    sort_by: Optional[Annotated[str, Field(max_length=50)]] = None
+    sort_order: Optional[Annotated[str, Field(max_length=4)]] = "desc"
     
     @field_validator('sort_by')
     def validate_sort_by(cls, v):

@@ -3,7 +3,7 @@ Production-Grade Reliability System
 Implements circuit breakers, retry logic, idempotency, and graceful degradation
 """
 
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, Type
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import asyncio
@@ -34,7 +34,7 @@ class CircuitBreaker:
         name: str,
         failure_threshold: int = 5,
         timeout: int = 60,
-        expected_exception: type = Exception
+        expected_exception: Type[Exception] = Exception
     ):
         """
         Args:
@@ -194,7 +194,7 @@ def retry(
                         )
             
             # All retries exhausted
-            raise last_exception
+            raise last_exception or Exception("All retries failed")
         
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -215,7 +215,7 @@ def retry(
                         
                         time.sleep(delay)
             
-            raise last_exception
+            raise last_exception or Exception("All retries failed")
         
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):

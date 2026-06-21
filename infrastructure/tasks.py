@@ -124,13 +124,15 @@ class BaseTask(Task):
 @task_prerun.connect
 def task_prerun_handler(sender=None, task_id=None, task=None, **kwargs):
     """Called before task execution"""
-    logging.info(f"Starting task {task.name} [{task_id}]")
+    if task is not None:
+        logging.info(f"Starting task {task.name} [{task_id}]")
 
 
 @task_postrun.connect
 def task_postrun_handler(sender=None, task_id=None, task=None, **kwargs):
     """Called after task execution"""
-    logging.info(f"Finished task {task.name} [{task_id}]")
+    if task is not None:
+        logging.info(f"Finished task {task.name} [{task_id}]")
 
 
 @task_failure.connect
@@ -230,7 +232,7 @@ class QueueManager:
         """Get currently running tasks"""
         from celery.app.control import Inspect
         inspect = Inspect(app=celery_app)
-        return inspect.active()
+        return inspect.active() or {}
     
     @staticmethod
     def get_worker_stats() -> dict:

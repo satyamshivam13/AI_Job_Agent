@@ -6,8 +6,8 @@ Implements intelligent caching for LLM responses, API calls, and database querie
 import redis
 import json
 import hashlib
-from typing import Optional, Any, Callable
-from datetime import timedelta
+from typing import Optional, Any, Callable, Dict
+from datetime import timedelta, datetime
 from functools import wraps
 import pickle
 from config.settings import settings
@@ -58,9 +58,9 @@ class RedisCache:
         try:
             serialized = pickle.dumps(value)
             if ttl:
-                return self.redis.setex(key, ttl, serialized)
+                return bool(self.redis.setex(key, ttl, serialized))
             else:
-                return self.redis.set(key, serialized)
+                return bool(self.redis.set(key, serialized))
         except Exception as e:
             print(f"Redis SET error: {e}")
             return False
@@ -68,7 +68,7 @@ class RedisCache:
     def delete(self, key: str) -> bool:
         """Delete key from cache"""
         try:
-            return self.redis.delete(key) > 0
+            return int(self.redis.delete(key)) > 0  # type: ignore[arg-type]
         except Exception as e:
             print(f"Redis DELETE error: {e}")
             return False
@@ -78,7 +78,7 @@ class RedisCache:
         try:
             keys = self.redis.keys(pattern)
             if keys:
-                return self.redis.delete(*keys)
+                return int(self.redis.delete(*keys))  # type: ignore[arg-type]
             return 0
         except Exception as e:
             print(f"Redis DELETE PATTERN error: {e}")
@@ -87,7 +87,7 @@ class RedisCache:
     def exists(self, key: str) -> bool:
         """Check if key exists"""
         try:
-            return self.redis.exists(key) > 0
+            return int(self.redis.exists(key)) > 0  # type: ignore[arg-type]
         except Exception as e:
             print(f"Redis EXISTS error: {e}")
             return False
@@ -95,7 +95,7 @@ class RedisCache:
     def increment(self, key: str, amount: int = 1) -> int:
         """Increment counter"""
         try:
-            return self.redis.incrby(key, amount)
+            return int(self.redis.incrby(key, amount))  # type: ignore[arg-type]
         except Exception as e:
             print(f"Redis INCREMENT error: {e}")
             return 0
@@ -103,7 +103,7 @@ class RedisCache:
     def get_ttl(self, key: str) -> int:
         """Get remaining TTL for key"""
         try:
-            return self.redis.ttl(key)
+            return int(self.redis.ttl(key))  # type: ignore[arg-type]
         except Exception as e:
             print(f"Redis TTL error: {e}")
             return -1
@@ -119,7 +119,7 @@ def get_cache() -> "RedisCache":
             _cache_instance = RedisCache()
         except Exception:
             _cache_instance = RedisCache.__new__(RedisCache)
-            _cache_instance.redis = None
+            _cache_instance.redis = None  # type: ignore[assignment]
     return _cache_instance
 
 class _LazyCache:
@@ -192,7 +192,7 @@ class LLMCache:
         return hashlib.sha256(content.encode()).hexdigest()
     
     @classmethod
-    def get_response(cls, prompt: str, model: str) -> Optional[str]:
+    def get_response(cls, prompt: str, model: str) -> Optional[Dict[str, Any]]:
         """Get cached LLM response"""
         cache_key = f"llm:{cls._create_prompt_hash(prompt, model)}"
         return cache.get(cache_key)

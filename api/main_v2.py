@@ -3,14 +3,20 @@ Production-Grade API Implementation
 Integrates authentication, validation, monitoring, caching, and reliability
 """
 
+import os
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import time
 from datetime import datetime, timezone
+
+_logger = logging.getLogger(__name__)
 
 # Security & Auth
 from auth.security import (
@@ -30,12 +36,35 @@ from infrastructure.monitoring import (
 from infrastructure.cache import cache, JobSearchCache
 from infrastructure.tasks import celery_app, TaskResult
 from infrastructure.reliability import (
-    retry, timeout, idempotent,
+    retry, timeout,
     api_circuit_breaker, scraping_bulkhead
 )
 
 # Database
 from models.database import get_db, Job, Application, Resume
+
+def _get_cors_origins() -> list:
+    origins_env = os.environ.get("CORS_ORIGINS", "")
+    if origins_env:
+        return [o.strip() for o in origins_env.split(",") if o.strip()]
+    if os.environ.get("ENVIRONMENT", "development") == "production":
+        import warnings
+        warnings.warn("CORS_ORIGINS not set in production — defaulting to empty list", RuntimeWarning)
+        return []
+    return ["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"]
+
+
+@asynccontextmanager
+async def lifespan(app):
+    _logger.info("API server starting up")
+    try:
+        cache.redis.ping()
+        _logger.info("Redis connection established")
+    except Exception as e:
+        _logger.error("Redis connection failed: %s", e)
+    yield
+    _logger.info("API server shutting down")
+
 
 # App initialization
 app = FastAPI(
@@ -43,7 +72,8 @@ app = FastAPI(
     description="Production-grade AI job application automation system",
     version="2.0.0",
     docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    redoc_url="/api/redoc",
+    lifespan=lifespan,
 )
 
 # ==================== MIDDLEWARE ====================
@@ -51,7 +81,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure properly in production
+    allow_origins=_get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,31 +96,14 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 async def log_requests(request: Request, call_next):
     """Log all HTTP requests with timing"""
     start_time = time.time()
-    
-    # Process request
     response = await call_next(request)
-    
-    # Calculate duration
     duration = time.time() - start_time
-    
-    # Get user ID if authenticated
-    user_id = None
-    if "authorization" in request.headers:
-        try:
-            # Extract user from token (simplified)
-            user_id = "user_from_token"
-        except:
-            pass
-    
-    # Log request
     structured_logger.log_request(
         method=request.method,
         endpoint=request.url.path,
         status=response.status_code,
         duration=duration,
-        user_id=user_id
     )
-    
     return response
 
 
@@ -161,29 +174,40 @@ async def root():
 # ==================== AUTHENTICATION ENDPOINTS ====================
 
 @app.post("/auth/token", tags=["Authentication"])
-async def login(username: str, password: str):
-    """
-    Login endpoint - returns JWT token
-    In production, verify against database
-    """
-    from auth.security import create_access_token, verify_password
-    
-    # Simplified - in production, query database
-    # user = db.query(User).filter(User.username == username).first()
-    # if not user or not verify_password(password, user.hashed_password):
-    #     raise HTTPException(401, "Invalid credentials")
-    
-    # Create tokens
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Login — verifies credentials against DB and returns a JWT."""
+    from models.database import User
+    from auth.security import create_access_token
+    import bcrypt as _bcrypt, hashlib as _hl
+
+    user = db.query(User).filter(User.username == form_data.username).first()
+    if not user or not bool(user.is_active):
+        raise HTTPException(status_code=401, detail="Invalid username or password",
+                            headers={"WWW-Authenticate": "Bearer"})
+
+    stored: str = str(user.hashed_password or "")
+    valid: bool = False
+    if stored.startswith("$2"):
+        try:
+            valid = _bcrypt.checkpw(form_data.password.encode(), stored.encode())
+        except Exception:
+            valid = False
+    else:
+        valid = stored == _hl.sha256((form_data.password + "salt_for_dev_only").encode()).hexdigest()
+
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid username or password",
+                            headers={"WWW-Authenticate": "Bearer"})
+
     access_token = create_access_token({
-        "sub": "user_123",
-        "username": username,
-        "roles": ["user"]
+        "sub": str(user.id),
+        "username": user.username,
+        "roles": getattr(user, "roles", None) or ["user"],
     })
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @app.get("/auth/me", tags=["Authentication"])
@@ -216,7 +240,7 @@ async def search_jobs(
         query=request.query,
         location=request.location or "",
         remote=request.remote or False,
-        limit=request.limit
+        limit=request.limit or 50
     )
     
     if cached_jobs:
@@ -244,6 +268,9 @@ async def search_jobs(
     }
 
 
+_VALID_JOB_SORT_FIELDS = {"id", "title", "company", "location", "match_score", "scraped_at", "platform"}
+
+
 @app.get("/api/jobs", tags=["Jobs"], dependencies=[Depends(require_user)])
 async def list_jobs(
     pagination: PaginationParams = Depends(),
@@ -252,15 +279,17 @@ async def list_jobs(
 ):
     """List jobs with pagination"""
     offset = (pagination.page - 1) * pagination.page_size
-    
+
     query = db.query(Job)
-    
-    # Apply sorting
+
     if pagination.sort_by:
-        if pagination.sort_order == "desc":
-            query = query.order_by(getattr(Job, pagination.sort_by).desc())
-        else:
-            query = query.order_by(getattr(Job, pagination.sort_by).asc())
+        if pagination.sort_by not in _VALID_JOB_SORT_FIELDS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid sort_by '{pagination.sort_by}'. Allowed: {sorted(_VALID_JOB_SORT_FIELDS)}"
+            )
+        col = getattr(Job, pagination.sort_by)
+        query = query.order_by(col.desc() if pagination.sort_order == "desc" else col.asc())
     
     total = query.count()
     jobs = query.offset(offset).limit(pagination.page_size).all()
@@ -292,7 +321,6 @@ async def get_job(
 # ==================== RESUME ENDPOINTS ====================
 
 @app.post("/api/resumes/generate", tags=["Resumes"], dependencies=[Depends(require_user)])
-@idempotent(operation_name="resume_generation", ttl=86400)
 async def generate_resume(
     request: ResumeGenerationRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -344,7 +372,6 @@ async def list_resumes(
 # ==================== APPLICATION ENDPOINTS ====================
 
 @app.post("/api/applications/submit", tags=["Applications"], dependencies=[Depends(require_user)])
-@idempotent(operation_name="job_application", ttl=86400 * 7)  # Remember for 7 days
 async def submit_application(
     request: ApplicationRequest,
     current_user: TokenData = Depends(get_current_user),
@@ -505,49 +532,15 @@ async def get_worker_stats(current_user: TokenData = Depends(get_current_user)):
     }
 
 
-# ==================== STARTUP/SHUTDOWN EVENTS ====================
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize on startup"""
-    structured_logger.log_error(
-        error_type="startup",
-        component="api",
-        message="API server starting up"
-    )
-    
-    # Warm up cache connections
-    try:
-        cache.redis.ping()
-        structured_logger.log_error(
-            error_type="startup",
-            component="redis",
-            message="Redis connection established"
-        )
-    except Exception as e:
-        structured_logger.log_error(
-            error_type="startup_error",
-            component="redis",
-            message="Redis connection failed",
-            exception=e
-        )
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    structured_logger.log_error(
-        error_type="shutdown",
-        component="api",
-        message="API server shutting down"
-    )
+# ==================== STARTUP/SHUTDOWN ====================
+# Startup and shutdown logic is handled by the lifespan context manager above.
 
 
 if __name__ == "__main__":
     import uvicorn
     
     uvicorn.run(
-        "api.main:app",
+        "api.main_v2:app",
         host="0.0.0.0",
         port=8000,
         reload=True,

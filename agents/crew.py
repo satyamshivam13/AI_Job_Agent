@@ -15,7 +15,7 @@ class LLMFactory:
     """Factory for creating LLM instances based on configuration"""
 
     @staticmethod
-    def create_llm(provider: str = None, temperature: float = 0.7):
+    def create_llm(provider: Optional[str] = None, temperature: float = 0.7):
         """Create crewai-native LLM instance based on provider"""
         provider = provider or settings.llm_provider.value
 
@@ -95,15 +95,10 @@ class JobFinderAgent:
     def score_jobs(self, jobs: List[Dict], user_profile: Dict) -> List[Dict]:
         """Score and rank jobs"""
         task = self.create_task(jobs, user_profile)
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[task],
-            process=Process.sequential,
-            verbose=True
-        )
-        
+        crew = Crew(agents=[self.agent], tasks=[task], process=Process.sequential, verbose=True)  # type: ignore[call-arg]
+
         result = crew.kickoff()
-        
+
         try:
             # Parse the result as JSON
             scored_jobs = json.loads(str(result))
@@ -167,15 +162,10 @@ class ResumeOptimizerAgent:
                        variant_type: str = "balanced") -> Dict:
         """Optimize resume for a specific job"""
         task = self.create_task(base_resume, job_description, variant_type)
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[task],
-            process=Process.sequential,
-            verbose=True
-        )
-        
+        crew = Crew(agents=[self.agent], tasks=[task], process=Process.sequential, verbose=True)  # type: ignore[call-arg]
+
         result = crew.kickoff()
-        
+
         try:
             optimized = json.loads(str(result))
             return optimized
@@ -243,15 +233,10 @@ class CoverLetterAgent:
                             resume_summary: str) -> Dict:
         """Generate personalized cover letter"""
         task = self.create_task(job, user_profile, resume_summary)
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[task],
-            process=Process.sequential,
-            verbose=True
-        )
-        
+        crew = Crew(agents=[self.agent], tasks=[task], process=Process.sequential, verbose=True)  # type: ignore[call-arg]
+
         result = crew.kickoff()
-        
+
         try:
             cover_letter = json.loads(str(result))
             return cover_letter
@@ -311,15 +296,10 @@ class QAValidatorAgent:
     def validate_application(self, application_package: Dict) -> Dict:
         """Validate application before submission"""
         task = self.create_task(application_package)
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[task],
-            process=Process.sequential,
-            verbose=True
-        )
-        
+        crew = Crew(agents=[self.agent], tasks=[task], process=Process.sequential, verbose=True)  # type: ignore[call-arg]
+
         result = crew.kickoff()
-        
+
         try:
             validation = json.loads(str(result))
             return validation
@@ -405,7 +385,7 @@ class JobApplicationCrew:
                         "status": "ready"
                     })
                 else:
-                    print(f"  └─ ⚠ {validation.get('validation_result').upper()}")
+                    print(f"  └─ ⚠ {(validation.get('validation_result') or 'unknown').upper()}")
                     results.append({
                         **application_package,
                         "validation": validation,

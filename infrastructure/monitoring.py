@@ -5,14 +5,14 @@ Implements Prometheus metrics, OpenTelemetry tracing, and structured logging
 
 from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest
 try:
-    from opentelemetry import trace, metrics
-    from opentelemetry.exporter.prometheus import PrometheusMetricReader
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-    from opentelemetry.instrumentation.redis import RedisInstrumentor
+    from opentelemetry import trace, metrics  # type: ignore[import-untyped]
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-untyped]
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore[import-untyped]
+    from opentelemetry.sdk.metrics import MeterProvider  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor  # type: ignore[import-untyped]
+    from opentelemetry.instrumentation.redis import RedisInstrumentor  # type: ignore[import-untyped]
     _OTEL_AVAILABLE = True
 except ImportError:
     _OTEL_AVAILABLE = False
@@ -25,7 +25,7 @@ except ImportError:
 import logging
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import structlog
 from config.settings import settings
 
@@ -35,7 +35,7 @@ from config.settings import settings
 app_info = Info("ai_job_agent", "AI Job Agent application information")
 app_info.info({
     "version": "2.0.0",
-    "environment": settings.ENVIRONMENT if hasattr(settings, 'ENVIRONMENT') else "production"
+    "environment": getattr(settings, 'ENVIRONMENT', getattr(settings, 'environment', 'production'))
 })
 
 # Request Metrics
@@ -225,24 +225,27 @@ class TracingManager:
     """Manage distributed tracing"""
     
     @staticmethod
-    def create_span(name: str, attributes: Dict[str, Any] = None):
+    def create_span(name: str, attributes: Optional[Dict[str, Any]] = None):
         """Create a new trace span"""
+        if tracer is None:
+            return None
         with tracer.start_as_current_span(name) as span:
             if attributes:
                 for key, value in attributes.items():
                     span.set_attribute(key, value)
             return span
-    
+
     @staticmethod
-    def add_event(span, name: str, attributes: Dict[str, Any] = None):
+    def add_event(span, name: str, attributes: Optional[Dict[str, Any]] = None):
         """Add event to current span"""
         span.add_event(name, attributes=attributes or {})
-    
+
     @staticmethod
     def record_exception(span, exception: Exception):
         """Record exception in span"""
         span.record_exception(exception)
-        span.set_status(trace.Status(trace.StatusCode.ERROR))
+        if trace is not None:
+            span.set_status(trace.Status(trace.StatusCode.ERROR))
 
 
 # ==================== STRUCTURED LOGGING ====================
@@ -273,7 +276,7 @@ class StructuredLogger:
     """Structured logging for better observability"""
     
     @staticmethod
-    def log_request(method: str, endpoint: str, status: int, duration: float, user_id: str = None):
+    def log_request(method: str, endpoint: str, status: int, duration: float, user_id: Optional[str] = None):
         """Log HTTP request"""
         logger.info(
             "http_request",

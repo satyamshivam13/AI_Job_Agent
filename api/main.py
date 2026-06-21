@@ -6,15 +6,13 @@ Provides endpoints for dashboard and external integrations
 import os
 import json
 import asyncio
-import subprocess
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, Response, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, desc, func
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import desc, func
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from pydantic import field_validator, BaseModel, ConfigDict
@@ -30,7 +28,7 @@ from infrastructure.monitoring import (
 )
 from prometheus_client import CONTENT_TYPE_LATEST
 
-from models.database import Base, Job, Application, ResumeVersion, UserProfile, Analytics, ActivityLog
+from models.database import Job, Application, ResumeVersion, ActivityLog
 from utils.logger import logger
 
 
@@ -134,7 +132,12 @@ class DashboardStats(BaseModel):
     pending_applications: int
     interview_rate: float
     best_platform: str
-    
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: str
 
 
 @app.middleware("http")
@@ -213,7 +216,7 @@ async def login(
     db = next(db_gen)
     try:
         user = db.query(User).filter(User.username == form_data.username).first()
-        if not user or not user.is_active:
+        if not user or not bool(user.is_active):
             raise HTTPException(
                 status_code=401,
                 detail="Invalid username or password",
@@ -221,8 +224,8 @@ async def login(
             )
         # Verify password — support both bcrypt and SHA-256 (dev fallback)
         pw = form_data.password
-        stored = user.hashed_password or ""
-        valid = False
+        stored: str = str(user.hashed_password or "")
+        valid: bool = False
         if stored.startswith("$2"):  # bcrypt hash
             try:
                 valid = _bcrypt.checkpw(pw.encode(), stored.encode())
@@ -252,16 +255,15 @@ async def login(
 
 @app.post("/auth/register", status_code=201)
 async def register(
+    body: RegisterRequest,
     request: Request,
-    username: str,
-    password: str,
-    email: str,
     _rate: None = Depends(login_rate_limiter),
     db: Session = Depends(get_db)):
     """Create a new user. Returns JWT token immediately."""
     from models.database import User
     from auth.security import create_access_token
     import hashlib as _hl
+    username, password, email = body.username, body.password, body.email
 
     if len(password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
@@ -592,7 +594,7 @@ async def apply_to_job(
         return {
             "status": "already_applied",
             "application_id": str(existing.id),
-            "applied_at": existing.applied_at.isoformat() if existing.applied_at else None,
+            "applied_at": existing.applied_at.isoformat() if existing.applied_at is not None else None,
         }
 
     try:
@@ -617,7 +619,7 @@ async def apply_to_job(
             platform=job.platform, status=ApplicationStatus.PENDING,
             applied_at=datetime.now(timezone.utc),
         )
-        db.add(application); job.applied = True; db.commit()
+        db.add(application); setattr(job, 'applied', True); db.commit()
         return {"status": "queued_sync", "application_id": str(application.id),
                 "message": "Applied synchronously (worker queue unavailable)."}
 
@@ -644,11 +646,11 @@ async def download_resume(
     """Download a specific resume version"""
     version = db.query(ResumeVersion).filter(ResumeVersion.id == version_id).first()
     
-    if not version or not version.resume_file_path:
+    if not version or version.resume_file_path is None:
         raise HTTPException(status_code=404, detail="Resume not found")
-    
+
     return FileResponse(
-        version.resume_file_path,
+        str(version.resume_file_path),
         media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         filename=f'resume_{version.variant_type}.docx'
     )
@@ -658,8 +660,15 @@ async def download_resume(
 # RESUME UPLOAD & PIPELINE ENDPOINTS
 # =============================================================================
 
-RESUME_DATA_PATH = Path("data/resume.json")
 PIPELINE_LOG_PATH = Path("data/pipeline.log")
+
+
+def _resume_path(user_id: str) -> Path:
+    return Path("data") / "resumes" / f"{user_id}.json"
+# Single-worker deployment only — these variables are process-local.
+# With multiple workers (e.g. gunicorn -w N) each worker has an isolated copy,
+# causing inconsistent pipeline state. For multi-worker setups migrate to a
+# shared store (Redis, database, or a PID file with locking).
 _pipeline_proc: Optional[asyncio.subprocess.Process] = None
 _pipeline_status = {"running": False, "started_at": None, "last_run": None, "log": []}
 
@@ -672,7 +681,7 @@ def _extract_text_from_file(content: bytes, filename: str) -> str:
         from PyPDF2 import PdfReader
         reader = PdfReader(io.BytesIO(content))
         return "\n".join(p.extract_text() or "" for p in reader.pages)
-    elif ext in (".docx", ".doc"):
+    elif ext == ".docx":
         import io
         from docx import Document as DocxDoc
         doc = DocxDoc(io.BytesIO(content))
@@ -686,11 +695,13 @@ def _extract_text_from_file(content: bytes, filename: str) -> str:
 async def _parse_resume_with_llm(raw_text: str) -> dict:
     """Use Groq to parse raw resume text into structured JSON."""
     from langchain_groq import ChatGroq
+    from pydantic import SecretStr as _SecretStr
     llm = ChatGroq(
-        api_key=settings.groq_api_key,
-        model_name="llama-3.3-70b-versatile",
+        api_key=_SecretStr(settings.groq_api_key) if settings.groq_api_key else None,
+        model="llama-3.3-70b-versatile",
         temperature=0.1,
         max_tokens=4096,
+        stop_sequences=None,
     )
     prompt = f"""Extract the following fields from this resume text and return ONLY valid JSON, no markdown, no explanation.
 
@@ -738,12 +749,13 @@ Resume text:
 {raw_text[:6000]}"""
 
     response = llm.invoke(prompt)
-    text = response.content.strip()
-    # Strip markdown fences if present
+    text = str(response.content).strip()
     if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+        end = text.find("```", 3)
+        inner = text[3:end] if end != -1 else text[3:]
+        if inner.startswith("json"):
+            inner = inner[4:]
+        text = inner.lstrip("\n")
     return json.loads(text)
 
 
@@ -753,8 +765,8 @@ async def upload_resume(
     current_user: TokenData = Depends(get_current_user),
 ):
     """Upload a PDF or DOCX resume, parse it with AI, save for pipeline use."""
-    allowed = {".pdf", ".docx", ".doc", ".txt"}
-    ext = Path(file.filename).suffix.lower()
+    allowed = {".pdf", ".docx", ".txt"}
+    ext = Path(file.filename or "").suffix.lower()
     if ext not in allowed:
         raise HTTPException(status_code=422, detail=f"Unsupported file type '{ext}'. Use PDF, DOCX, or TXT.")
 
@@ -763,7 +775,7 @@ async def upload_resume(
         raise HTTPException(status_code=413, detail="File too large. Max 5 MB.")
 
     try:
-        raw_text = _extract_text_from_file(content, file.filename)
+        raw_text = _extract_text_from_file(content, file.filename or "")
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Could not read file: {e}")
 
@@ -775,8 +787,9 @@ async def upload_resume(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
 
-    RESUME_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RESUME_DATA_PATH.write_text(json.dumps(parsed, indent=2))
+    user_path = _resume_path(str(current_user.user_id))
+    user_path.parent.mkdir(parents=True, exist_ok=True)
+    user_path.write_text(json.dumps(parsed, indent=2))
 
     return {"status": "ok", "filename": file.filename, "resume": parsed}
 
@@ -784,10 +797,11 @@ async def upload_resume(
 @app.get("/api/resume/current")
 async def get_current_resume(current_user: TokenData = Depends(get_current_user)):
     """Return the currently saved resume data."""
-    if not RESUME_DATA_PATH.exists():
+    user_path = _resume_path(str(current_user.user_id))
+    if not user_path.exists():
         return {"resume": None, "source": "none"}
     try:
-        data = json.loads(RESUME_DATA_PATH.read_text())
+        data = json.loads(user_path.read_text())
         return {"resume": data, "source": "uploaded"}
     except Exception:
         return {"resume": None, "source": "error"}
@@ -803,21 +817,27 @@ async def start_pipeline(current_user: TokenData = Depends(get_current_user)):
 
     PIPELINE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(str(PIPELINE_LOG_PATH), "w", encoding="utf-8")
-
-    env = {**os.environ, "PYTHONUTF8": "1"}
-    _pipeline_proc = await asyncio.create_subprocess_exec(
-        "python", "main.py", "--mode", "search",
-        stdout=log_file, stderr=log_file,
-        env=env,
-        cwd=str(Path(__file__).parent.parent),
-    )
+    try:
+        env = {**os.environ, "PYTHONUTF8": "1"}
+        _pipeline_proc = await asyncio.create_subprocess_exec(
+            "python", "main.py", "--mode", "search",
+            stdout=log_file, stderr=log_file,
+            env=env,
+            cwd=str(Path(__file__).parent.parent),
+        )
+    except Exception:
+        log_file.close()
+        raise
 
     _pipeline_status["running"] = True
     _pipeline_status["started_at"] = datetime.now(timezone.utc).isoformat()
     _pipeline_status["log"] = []
 
+    proc = _pipeline_proc
+    assert proc is not None
+
     async def _watch():
-        await _pipeline_proc.wait()
+        await proc.wait()
         log_file.close()
         _pipeline_status["running"] = False
         _pipeline_status["last_run"] = datetime.now(timezone.utc).isoformat()

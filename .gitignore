@@ -60,9 +60,11 @@ screenshots/
 *.jpg
 *.jpeg
 
-# Resumes
+# Resumes & user data (PII — never commit)
 /tmp/resumes/
 uploads/
+data/resumes/
+data/resume.json
 *.docx
 *.pdf
 

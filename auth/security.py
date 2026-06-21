@@ -115,14 +115,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenData:
         username: str = payload.get("username")
         roles: List[str] = payload.get("roles", [])
         
-        if user_id is None:
+        exp_ts = payload.get("exp")
+        if user_id is None or exp_ts is None:
             raise credentials_exception
-        
+
         token_data = TokenData(
             user_id=user_id,
             username=username,
             roles=roles,
-            exp=datetime.fromtimestamp(payload.get("exp"))
+            exp=datetime.fromtimestamp(float(exp_ts), tz=timezone.utc)
         )
         
     except JWTError:

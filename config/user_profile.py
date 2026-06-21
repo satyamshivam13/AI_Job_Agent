@@ -4,12 +4,12 @@ Loads and returns the user profile from the JSON config file.
 """
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 _PROFILE_PATH = Path(__file__).parent / "user_profile.json"
 
 
-def get_user_profile(user_id: str = None) -> Dict[str, Any]:
+def get_user_profile(user_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Return user profile dict.
     In production, user_id would be used to load from database.

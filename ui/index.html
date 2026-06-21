@@ -135,13 +135,13 @@ input:focus, select:focus, textarea:focus { border-color: #63b3ed; }
 <aside class="sidebar">
   <div class="logo">AI Job Agent <span>Groq · CrewAI · Voyage AI</span></div>
   <nav>
-    <a class="active" onclick="nav('dashboard')"   data-p="dashboard">  <span class="icon">📊</span> Dashboard</a>
-    <a onclick="nav('resume')"      data-p="resume">     <span class="icon">📄</span> My Resume</a>
-    <a onclick="nav('pipeline')"    data-p="pipeline">   <span class="icon">🤖</span> Run Pipeline</a>
-    <a onclick="nav('jobs')"        data-p="jobs">       <span class="icon">💼</span> Jobs</a>
-    <a onclick="nav('applications')"data-p="applications"><span class="icon">📬</span> Applications</a>
-    <a onclick="nav('activity')"    data-p="activity">   <span class="icon">📋</span> Activity Log</a>
-    <a onclick="nav('apitester')"   data-p="apitester">  <span class="icon">🔌</span> API Tester</a>
+    <a class="active" href="#" onclick="nav('dashboard');return false;"   data-p="dashboard">  <span class="icon">📊</span> Dashboard</a>
+    <a href="#" onclick="nav('resume');return false;"      data-p="resume">     <span class="icon">📄</span> My Resume</a>
+    <a href="#" onclick="nav('pipeline');return false;"    data-p="pipeline">   <span class="icon">🤖</span> Run Pipeline</a>
+    <a href="#" onclick="nav('jobs');return false;"        data-p="jobs">       <span class="icon">💼</span> Jobs</a>
+    <a href="#" onclick="nav('applications');return false;"data-p="applications"><span class="icon">📬</span> Applications</a>
+    <a href="#" onclick="nav('activity');return false;"    data-p="activity">   <span class="icon">📋</span> Activity Log</a>
+    <a href="#" onclick="nav('apitester');return false;"   data-p="apitester">  <span class="icon">🔌</span> API Tester</a>
   </nav>
   <div class="sidebar-bottom" id="sidebarUser">Not logged in</div>
 </aside>
@@ -227,7 +227,7 @@ input:focus, select:focus, textarea:focus { border-color: #63b3ed; }
               <div class="dz-text">Drop your resume here or <strong style="color:#63b3ed">click to browse</strong></div>
               <div class="dz-sub">Supported: PDF, DOCX, TXT</div>
             </div>
-            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt" onchange="uploadFile(this.files[0])">
+            <input type="file" id="fileInput" accept=".pdf,.docx,.txt" onchange="uploadFile(this.files[0])">
             <div id="uploadAlert" style="margin-top:12px"></div>
           </div>
         </div>
@@ -341,6 +341,14 @@ let _jobs = [];
 let _pollTimer = null;
 
 // ── Helpers ──────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeUrl(url) {
+  if (!url) return '';
+  try { const u=new URL(url); return (u.protocol==='http:'||u.protocol==='https:')?url:''; }
+  catch { return ''; }
+}
 async function req(method, path, body, isForm) {
   const h = { Authorization: `Bearer ${token}` };
   const opts = { method, headers: h };
@@ -362,7 +370,7 @@ function badge(s) {
               pending:'yellow',interviewing:'yellow',scored:'yellow',viewed:'yellow',
               failed:'red',rejected:'red',error:'red',
               new:'blue',queued:'blue',queued_sync:'blue',started:'blue' };
-  return `<span class="badge badge-${m[s?.toLowerCase()]||'gray'}">${s}</span>`;
+  return `<span class="badge badge-${m[s?.toLowerCase()]||'gray'}">${escapeHtml(String(s))}</span>`;
 }
 
 function scoreColor(n) {
@@ -371,7 +379,12 @@ function scoreColor(n) {
 }
 
 function showAlert(elId, msg, type='error') {
-  document.getElementById(elId).innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  const el=document.getElementById(elId);
+  const div=document.createElement('div');
+  div.className=`alert alert-${type}`;
+  div.textContent=msg;
+  el.innerHTML='';
+  el.appendChild(div);
 }
 
 // ── Auth ─────────────────────────────────────────────────────────
@@ -400,7 +413,7 @@ async function doRegister() {
   const u=document.getElementById('ru').value.trim(), e=document.getElementById('re').value.trim(), p=document.getElementById('rp').value;
   if (!u||!e||!p) return showAlert('authAlert','Fill in all fields');
   try {
-    const r=await fetch(`${API}/auth/register?username=${encodeURIComponent(u)}&email=${encodeURIComponent(e)}&password=${encodeURIComponent(p)}`,{method:'POST'});
+    const r=await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:e,password:p})});
     const d=await r.json();
     if (!r.ok) return showAlert('authAlert',d.detail||'Registration failed');
     token=d.access_token; username=u;
@@ -455,10 +468,10 @@ async function loadDashboard() {
   if (rv.resume) {
     const r2=rv.resume;
     rsEl.innerHTML=`<div style="font-size:13px">
-      <div style="font-weight:600;font-size:15px;color:#e2e8f0;margin-bottom:4px">${r2.name||'—'}</div>
-      <div style="color:#718096;margin-bottom:10px">${r2.email||''} · ${r2.location||''}</div>
+      <div style="font-weight:600;font-size:15px;color:#e2e8f0;margin-bottom:4px">${escapeHtml(r2.name||'—')}</div>
+      <div style="color:#718096;margin-bottom:10px">${escapeHtml(r2.email||'')} · ${escapeHtml(r2.location||'')}</div>
       <div class="section-label">Top Skills</div>
-      <div>${(r2.skills?.primary||[]).slice(0,6).map(s=>`<span class="skill-chip">${s}</span>`).join('')}</div>
+      <div>${(r2.skills?.primary||[]).slice(0,6).map(s=>`<span class="skill-chip">${escapeHtml(s)}</span>`).join('')}</div>
       <div style="margin-top:12px"><button class="btn btn-outline btn-sm" onclick="nav('resume')">✏ Update Resume</button></div>
     </div>`;
   } else {
@@ -474,10 +487,10 @@ async function loadDashboard() {
   document.getElementById('dashActivity').innerHTML=logs.length?`
     <table><thead><tr><th>Time</th><th>Type</th><th>Status</th><th>Details</th></tr></thead><tbody>
     ${logs.map(l=>`<tr>
-      <td style="color:#718096;font-size:12px">${fmtDate(l.timestamp)}</td>
-      <td><span class="tag">${l.activity_type||'—'}</span></td>
+      <td style="color:#718096;font-size:12px">${escapeHtml(fmtDate(l.timestamp))}</td>
+      <td><span class="tag">${escapeHtml(l.activity_type||'—')}</span></td>
       <td>${badge(l.status)}</td>
-      <td class="truncate" style="color:#718096;font-size:12px">${JSON.stringify(l.details||{}).slice(0,70)}</td>
+      <td class="truncate" style="color:#718096;font-size:12px">${escapeHtml(JSON.stringify(l.details||{}).slice(0,70))}</td>
     </tr>`).join('')}
     </tbody></table>` : `<div class="empty">No activity yet — run the pipeline to get started</div>`;
 }
@@ -495,7 +508,7 @@ function dzDrop(e)  { e.preventDefault(); dzLeave(); const f=e.dataTransfer.file
 async function uploadFile(file) {
   if (!file) return;
   const dz=document.getElementById('dropZone');
-  dz.innerHTML=`<div class="dz-icon"><div class="spinner"></div></div><div class="dz-text">Parsing <strong>${file.name}</strong> with AI…</div><div class="dz-sub">This takes 5-10 seconds</div>`;
+  dz.innerHTML=`<div class="dz-icon"><div class="spinner"></div></div><div class="dz-text">Parsing <strong>${escapeHtml(file.name)}</strong> with AI…</div><div class="dz-sub">This takes 5-10 seconds</div>`;
   document.getElementById('uploadAlert').innerHTML='';
 
   const fd=new FormData(); fd.append('file',file);
@@ -507,7 +520,7 @@ async function uploadFile(file) {
       return showAlert('uploadAlert', d.detail||'Upload failed', 'error');
     }
     resetDropZone();
-    showAlert('uploadAlert',`Resume parsed successfully from <strong>${file.name}</strong>`, 'success');
+    showAlert('uploadAlert',`Resume parsed successfully from ${file.name}`, 'success');
     renderResume(d.resume);
   } catch(e) {
     resetDropZone();
@@ -529,32 +542,32 @@ function renderResume(r) {
   card.style.display='';
 
   const field=(lbl,val)=>val?`<div class="resume-field"><div class="rf-label">${lbl}</div><div class="rf-val">${val}</div></div>`:'';
-  const skills=(r.skills?.primary||[]).map(s=>`<span class="skill-chip">${s}</span>`).join('');
-  const skillsSec=(r.skills?.secondary||[]).map(s=>`<span class="skill-chip" style="background:#1c4532;color:#68d391">${s}</span>`).join('');
+  const skills=(r.skills?.primary||[]).map(s=>`<span class="skill-chip">${escapeHtml(s)}</span>`).join('');
+  const skillsSec=(r.skills?.secondary||[]).map(s=>`<span class="skill-chip" style="background:#1c4532;color:#68d391">${escapeHtml(s)}</span>`).join('');
   const exp=(r.experience||[]).map(e=>`
     <div style="margin-bottom:14px;padding:12px;background:#0f1117;border-radius:6px;border:1px solid #1e2a3a">
-      <div style="font-weight:600;color:#e2e8f0">${e.title} <span style="color:#718096">@ ${e.company}</span></div>
-      <div style="font-size:12px;color:#718096;margin:3px 0">${e.start_date||''} – ${e.end_date||''} · ${e.location||''}</div>
+      <div style="font-weight:600;color:#e2e8f0">${escapeHtml(e.title||'')} <span style="color:#718096">@ ${escapeHtml(e.company||'')}</span></div>
+      <div style="font-size:12px;color:#718096;margin:3px 0">${escapeHtml(e.start_date||'')} – ${escapeHtml(e.end_date||'')} · ${escapeHtml(e.location||'')}</div>
       <ul style="margin:8px 0 0 16px;color:#a0aec0;font-size:12px;line-height:1.7">
-        ${(e.achievements||[]).map(a=>`<li>${a}</li>`).join('')}
+        ${(e.achievements||[]).map(a=>`<li>${escapeHtml(a)}</li>`).join('')}
       </ul>
     </div>`).join('');
   const proj=(r.projects||[]).map(p=>`
     <div style="margin-bottom:10px;padding:10px;background:#0f1117;border-radius:6px;border:1px solid #1e2a3a">
-      <div style="font-weight:600;color:#e2e8f0">${p.name} <span style="font-size:11px;color:#63b3ed;font-weight:400">${p.technologies||''}</span></div>
-      <div style="font-size:12px;color:#a0aec0;margin-top:4px">${p.description||''}</div>
+      <div style="font-weight:600;color:#e2e8f0">${escapeHtml(p.name||'')} <span style="font-size:11px;color:#63b3ed;font-weight:400">${escapeHtml(p.technologies||'')}</span></div>
+      <div style="font-size:12px;color:#a0aec0;margin-top:4px">${escapeHtml(p.description||'')}</div>
     </div>`).join('');
 
   body.innerHTML=`
     <div style="margin-bottom:16px">
-      ${field('Name', r.name)}
-      ${field('Email', r.email)}
-      ${field('Phone', r.phone)}
-      ${field('Location', r.location)}
-      ${field('LinkedIn', r.linkedin ? `<a href="${r.linkedin}" target="_blank" style="color:#63b3ed">${r.linkedin}</a>` : '')}
-      ${field('GitHub', r.github ? `<a href="${r.github}" target="_blank" style="color:#63b3ed">${r.github}</a>` : '')}
+      ${field('Name', escapeHtml(r.name||''))}
+      ${field('Email', escapeHtml(r.email||''))}
+      ${field('Phone', escapeHtml(r.phone||''))}
+      ${field('Location', escapeHtml(r.location||''))}
+      ${field('LinkedIn', safeUrl(r.linkedin) ? `<a href="${safeUrl(r.linkedin)}" target="_blank" style="color:#63b3ed">${escapeHtml(r.linkedin)}</a>` : '')}
+      ${field('GitHub', safeUrl(r.github) ? `<a href="${safeUrl(r.github)}" target="_blank" style="color:#63b3ed">${escapeHtml(r.github)}</a>` : '')}
     </div>
-    ${r.summary?`<div style="margin-bottom:16px"><div class="section-label">Summary</div><div style="font-size:13px;color:#a0aec0;line-height:1.6">${r.summary}</div></div>`:''}
+    ${r.summary?`<div style="margin-bottom:16px"><div class="section-label">Summary</div><div style="font-size:13px;color:#a0aec0;line-height:1.6">${escapeHtml(r.summary)}</div></div>`:''}
     <div style="margin-bottom:16px"><div class="section-label">Primary Skills</div>${skills}</div>
     ${skillsSec?`<div style="margin-bottom:16px"><div class="section-label">Secondary Skills</div>${skillsSec}</div>`:''}
     ${exp?`<div style="margin-bottom:16px"><div class="section-label">Experience</div>${exp}</div>`:''}
@@ -588,12 +601,16 @@ function updatePipelineUI(data) {
 
   if (data.log && data.log.length) {
     const box=document.getElementById('pipelineLog');
-    box.innerHTML=data.log.map(l=>{
+    box.innerHTML='';
+    for (const l of data.log) {
       const cls=l.includes('ERROR')||l.includes('❌')?'log-err':
                 l.includes('INFO')||l.includes('✓')||l.includes('✅')?'log-ok':
                 l.includes('WARNING')||l.includes('⚠')?'log-warn':'';
-      return `<p class="${cls}">${l}</p>`;
-    }).join('');
+      const p=document.createElement('p');
+      if (cls) p.className=cls;
+      p.textContent=l;
+      box.appendChild(p);
+    }
     box.scrollTop=box.scrollHeight;
   }
 }
@@ -641,13 +658,13 @@ function renderJobs(jobs) {
   document.getElementById('jobsTable').innerHTML=jobs.length?`
     <table><thead><tr><th>Title</th><th>Company</th><th>Location</th><th>Platform</th><th>Score</th><th>Applied</th><th>Action</th></tr></thead><tbody>
     ${jobs.map(j=>`<tr>
-      <td><a href="${j.url}" target="_blank" style="color:#63b3ed;text-decoration:none">${(j.title||'').slice(0,42)}</a></td>
-      <td>${j.company||'—'}</td>
-      <td style="color:#718096;font-size:12px">${j.location||'—'}</td>
-      <td><span class="tag">${j.platform||'—'}</span></td>
+      <td><a href="${safeUrl(j.url)||'#'}" target="_blank" style="color:#63b3ed;text-decoration:none">${escapeHtml((j.title||'').slice(0,42))}</a></td>
+      <td>${escapeHtml(j.company||'—')}</td>
+      <td style="color:#718096;font-size:12px">${escapeHtml(j.location||'—')}</td>
+      <td><span class="tag">${escapeHtml(j.platform||'—')}</span></td>
       <td style="color:${scoreColor(j.match_score)}">${j.match_score!=null?j.match_score.toFixed(0)+'%':'—'}</td>
       <td>${j.applied?'<span class="badge badge-green">Yes</span>':'—'}</td>
-      <td><button class="btn btn-outline btn-sm" onclick="applyJob('${j.id}','${(j.title||'').replace(/'/g,'')}')" ${j.applied?'disabled':''}>Apply</button></td>
+      <td><button class="btn btn-outline btn-sm apply-btn" data-id="${escapeHtml(j.id||'')}" data-title="${escapeHtml(j.title||'')}" ${j.applied?'disabled':''}>Apply</button></td>
     </tr>`).join('')}
     </tbody></table>` : `<div class="empty">No jobs found — run the pipeline to scrape jobs</div>`;
 }
@@ -711,6 +728,11 @@ async function runApi() {
 function qa(m,p){ document.getElementById('apiMethod').value=m; document.getElementById('apiPath').value=p; document.getElementById('apiBody').value=''; nav('apitester'); runApi(); }
 
 // ── Boot ──────────────────────────────────────────────────────────
+document.getElementById('jobsTable').addEventListener('click', function(e) {
+  const btn=e.target.closest('.apply-btn');
+  if (btn && !btn.disabled) applyJob(btn.dataset.id, btn.dataset.title);
+});
+
 if (token) {
   document.getElementById('authGate').style.display='none';
   document.getElementById('appShell').style.display='';

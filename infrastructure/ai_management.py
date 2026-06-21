@@ -4,7 +4,7 @@ Implements prompt versioning, cost tracking, quality evaluation, and model fallb
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 import json
 import hashlib
@@ -14,7 +14,7 @@ from infrastructure.cache import LLMCache, cache
 from config.settings import settings
 from infrastructure.monitoring import structured_logger, llm_requests_total, llm_cost_usd
 try:
-    import anthropic
+    import anthropic  # type: ignore[import-untyped]
 except ImportError:
     anthropic = None
 try:
@@ -439,17 +439,21 @@ class ModelRouter:
     
     async def _call_groq(self, prompt: str, model: str, temperature: float, max_tokens: int) -> Dict:
         """Call Groq API"""
+        if self.groq_client is None:
+            raise ValueError("Groq API key not configured")
         response = self.groq_client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
             max_tokens=max_tokens
         )
-        
+        usage = response.usage
+        if usage is None:
+            raise ValueError("No usage data in Groq response")
         return {
             "response": response.choices[0].message.content,
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
             "cost_usd": 0.0,  # Groq free tier
             "model": model,
             "cached": False
@@ -467,16 +471,19 @@ class ModelRouter:
             max_tokens=max_tokens
         )
         
+        usage = response.usage
+        if usage is None:
+            raise ValueError("No usage data in OpenAI response")
         cost_usd = self.cost_tracker.calculate_cost(
             model=model,
-            prompt_tokens=response.usage.prompt_tokens,
-            completion_tokens=response.usage.completion_tokens
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens
         )
-        
+
         return {
             "response": response.choices[0].message.content,
-            "prompt_tokens": response.usage.prompt_tokens,
-            "completion_tokens": response.usage.completion_tokens,
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
             "cost_usd": cost_usd,
             "model": model,
             "cached": False

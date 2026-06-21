@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Job Agent</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+.app { display: flex; height: 100vh; }
+.sidebar { width: 220px; background: #161b27; border-right: 1px solid #2d3748; display: flex; flex-direction: column; flex-shrink: 0; }
+.main { flex: 1; overflow-y: auto; }
+
+.logo { padding: 22px 20px 14px; font-size: 17px; font-weight: 700; color: #63b3ed; border-bottom: 1px solid #2d3748; }
+.logo span { font-size: 11px; font-weight: 400; color: #718096; display: block; margin-top: 3px; }
+nav { flex: 1; padding: 10px 0; }
+nav a { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: #a0aec0; text-decoration: none; font-size: 14px; cursor: pointer; transition: all .15s; border-left: 3px solid transparent; }
+nav a:hover { background: #1e2a3a; color: #e2e8f0; }
+nav a.active { background: #1e2a3a; color: #63b3ed; border-left-color: #63b3ed; }
+nav a .icon { font-size: 15px; width: 18px; text-align: center; }
+.sidebar-bottom { padding: 14px 20px; border-top: 1px solid #2d3748; font-size: 12px; color: #718096; }
+.sidebar-bottom .uname { color: #68d391; font-weight: 600; font-size: 13px; display: block; margin-top: 2px; }
+
+.topbar { background: #161b27; border-bottom: 1px solid #2d3748; padding: 13px 26px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+.topbar h1 { font-size: 17px; font-weight: 600; }
+.topbar .actions { display: flex; gap: 8px; align-items: center; }
+
+.content { padding: 26px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* Stats */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat-card { background: #161b27; border: 1px solid #2d3748; border-radius: 10px; padding: 18px; }
+.stat-card .lbl { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: .6px; }
+.stat-card .val { font-size: 30px; font-weight: 700; color: #63b3ed; margin-top: 5px; }
+.stat-card .sub { font-size: 11px; color: #68d391; margin-top: 3px; }
+
+/* Cards */
+.card { background: #161b27; border: 1px solid #2d3748; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.card-head { padding: 14px 18px; border-bottom: 1px solid #2d3748; display: flex; align-items: center; justify-content: space-between; }
+.card-head h2 { font-size: 14px; font-weight: 600; }
+.card-body { padding: 18px; }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { background: #1a2234; color: #718096; font-weight: 500; padding: 9px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+td { padding: 11px 14px; border-top: 1px solid #1e2a3a; color: #cbd5e0; vertical-align: middle; }
+tr:hover td { background: #1a2234; }
+.empty { padding: 36px; text-align: center; color: #4a5568; font-size: 14px; }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+.badge-green  { background: #1c4532; color: #68d391; }
+.badge-blue   { background: #1a365d; color: #63b3ed; }
+.badge-yellow { background: #44371b; color: #f6e05e; }
+.badge-red    { background: #3b1515; color: #fc8181; }
+.badge-gray   { background: #2d3748; color: #a0aec0; }
+
+/* Buttons */
+.btn { padding: 9px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: #2b6cb0; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #3182ce; }
+.btn-primary:disabled { background: #2d3748; color: #718096; cursor: not-allowed; }
+.btn-success { background: #276749; color: #68d391; }
+.btn-success:hover { background: #2f855a; }
+.btn-danger { background: #742a2a; color: #fc8181; }
+.btn-danger:hover { background: #9b2c2c; }
+.btn-outline { background: none; border: 1px solid #2d3748; color: #a0aec0; }
+.btn-outline:hover { border-color: #63b3ed; color: #63b3ed; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+
+/* Forms */
+.form-row { margin-bottom: 14px; }
+label { display: block; font-size: 11px; color: #a0aec0; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; }
+input, select, textarea { width: 100%; background: #0f1117; border: 1px solid #2d3748; color: #e2e8f0; padding: 9px 12px; border-radius: 6px; font-size: 13px; outline: none; transition: border .15s; font-family: inherit; }
+input:focus, select:focus, textarea:focus { border-color: #63b3ed; }
+
+/* Alerts */
+.alert { padding: 11px 15px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+.alert-error   { background: #3b1515; color: #fc8181; border: 1px solid #742a2a; }
+.alert-success { background: #1c4532; color: #68d391; border: 1px solid #276749; }
+.alert-info    { background: #1a365d; color: #63b3ed; border: 1px solid #2b6cb0; }
+.alert-warn    { background: #44371b; color: #f6e05e; border: 1px solid #744210; }
+
+/* Auth */
+.auth-wrap { max-width: 400px; margin: 60px auto; }
+.tabs { display: flex; margin-bottom: 22px; border-bottom: 1px solid #2d3748; }
+.tabs button { background: none; border: none; color: #718096; padding: 9px 18px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; transition: all .15s; }
+.tabs button.active { color: #63b3ed; border-bottom-color: #63b3ed; }
+
+/* Resume upload */
+.drop-zone { border: 2px dashed #2d3748; border-radius: 10px; padding: 36px; text-align: center; cursor: pointer; transition: all .2s; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: #63b3ed; background: #1a2234; }
+.drop-zone .dz-icon { font-size: 36px; margin-bottom: 10px; }
+.drop-zone .dz-text { color: #718096; font-size: 14px; }
+.drop-zone .dz-sub  { color: #4a5568; font-size: 12px; margin-top: 5px; }
+#fileInput { display: none; }
+
+.resume-field { display: grid; grid-template-columns: 140px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid #1e2a3a; align-items: start; font-size: 13px; }
+.resume-field .rf-label { color: #718096; font-size: 12px; }
+.resume-field .rf-val { color: #e2e8f0; }
+
+/* Pipeline */
+.pipeline-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; background: #4a5568; }
+.status-dot.running { background: #68d391; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.log-box { background: #0a0d14; border: 1px solid #2d3748; border-radius: 6px; padding: 12px 14px; font-family: 'Courier New', monospace; font-size: 12px; height: 320px; overflow-y: auto; color: #a0aec0; line-height: 1.7; }
+.log-box p { margin: 0; }
+.log-ok   { color: #68d391; }
+.log-err  { color: #fc8181; }
+.log-info { color: #63b3ed; }
+.log-warn { color: #f6e05e; }
+
+/* Skills */
+.skill-chip { display: inline-block; background: #1a365d; color: #63b3ed; border-radius: 5px; padding: 3px 9px; font-size: 12px; margin: 3px 3px 3px 0; }
+
+/* Misc */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tag { font-size: 11px; background: #1a365d; color: #63b3ed; padding: 2px 7px; border-radius: 4px; }
+.truncate { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid #2d3748; border-top-color: #63b3ed; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.flex { display: flex; align-items: center; gap: 8px; }
+.mt-2 { margin-top: 8px; }
+.section-label { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar">
+  <div class="logo">AI Job Agent <span>Groq · CrewAI · Voyage AI</span></div>
+  <nav>
+    <a class="active" onclick="nav('dashboard')"   data-p="dashboard">  <span class="icon">📊</span> Dashboard</a>
+    <a onclick="nav('resume')"      data-p="resume">     <span class="icon">📄</span> My Resume</a>
+    <a onclick="nav('pipeline')"    data-p="pipeline">   <span class="icon">🤖</span> Run Pipeline</a>
+    <a onclick="nav('jobs')"        data-p="jobs">       <span class="icon">💼</span> Jobs</a>
+    <a onclick="nav('applications')"data-p="applications"><span class="icon">📬</span> Applications</a>
+    <a onclick="nav('activity')"    data-p="activity">   <span class="icon">📋</span> Activity Log</a>
+    <a onclick="nav('apitester')"   data-p="apitester">  <span class="icon">🔌</span> API Tester</a>
+  </nav>
+  <div class="sidebar-bottom" id="sidebarUser">Not logged in</div>
+</aside>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Auth gate -->
+  <div id="authGate" style="padding: 0 16px">
+    <div class="auth-wrap">
+      <div class="card">
+        <div class="card-body">
+          <div class="tabs">
+            <button class="active" onclick="authTab('login')">Login</button>
+            <button onclick="authTab('register')">Register</button>
+          </div>
+          <div id="authAlert"></div>
+          <div id="loginForm">
+            <div class="form-row"><label>Username</label><input id="lu" placeholder="username" /></div>
+            <div class="form-row"><label>Password</label><input id="lp" type="password" placeholder="••••••••" /></div>
+            <button class="btn btn-primary" style="width:100%" onclick="doLogin()">Login</button>
+          </div>
+          <div id="regForm" style="display:none">
+            <div class="form-row"><label>Username</label><input id="ru" placeholder="choose username" /></div>
+            <div class="form-row"><label>Email</label><input id="re" placeholder="you@example.com" /></div>
+            <div class="form-row"><label>Password</label><input id="rp" type="password" placeholder="min 8 chars" /></div>
+            <button class="btn btn-primary" style="width:100%" onclick="doRegister()">Create Account</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App shell -->
+  <div id="appShell" style="display:none">
+    <div class="topbar">
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="actions">
+        <span id="pipelineBadge"></span>
+        <button class="btn btn-outline btn-sm" onclick="refresh()">↻ Refresh</button>
+        <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ── Dashboard ── -->
+      <div class="page active" id="page-dashboard">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="lbl">Total Jobs</div><div class="val" id="s-jobs">—</div></div>
+          <div class="stat-card"><div class="lbl">Applications</div><div class="val" id="s-apps">—</div></div>
+          <div class="stat-card"><div class="lbl">Interviews</div><div class="val" id="s-ivw">—</div></div>
+          <div class="stat-card"><div class="lbl">Offers</div><div class="val" id="s-offers">—</div></div>
+          <div class="stat-card"><div class="lbl">Success Rate</div><div class="val" id="s-rate">—</div><div class="sub" id="s-rate-sub"></div></div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-head"><h2>Resume Status</h2></div>
+            <div class="card-body" id="dashResumeStatus"><div class="empty">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Quick Actions</h2></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+              <button class="btn btn-primary" onclick="nav('resume')">📄 Upload / Update Resume</button>
+              <button class="btn btn-success" onclick="nav('pipeline')">🤖 Start Job Search Pipeline</button>
+              <button class="btn btn-outline" onclick="nav('jobs')">💼 Browse Scraped Jobs</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Recent Activity</h2></div>
+          <div id="dashActivity"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- ── Resume ── -->
+      <div class="page" id="page-resume">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-head"><h2>Upload Your Resume</h2><span style="font-size:12px;color:#718096">PDF · DOCX · TXT · max 5 MB</span></div>
+          <div class="card-body">
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="dzOver(event)" ondragleave="dzLeave()" ondrop="dzDrop(event)">
+              <div class="dz-icon">📂</div>
+              <div class="dz-text">Drop your resume here or <strong style="color:#63b3ed">click to browse</strong></div>
+              <div class="dz-sub">Supported: PDF, DOCX, TXT</div>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt" onchange="uploadFile(this.files[0])">
+            <div id="uploadAlert" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <div class="card" id="resumeCard" style="display:none">
+          <div class="card-head"><h2 id="resumeCardTitle">Parsed Resume</h2><button class="btn btn-outline btn-sm" onclick="nav('pipeline')">▶ Run Pipeline with this Resume</button></div>
+          <div class="card-body" id="resumeCardBody"></div>
+        </div>
+      </div>
+
+      <!-- ── Pipeline ── -->
+      <div class="page" id="page-pipeline">
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-head"><h2>Job Search Pipeline</h2></div>
+          <div class="card-body">
+            <p style="font-size:13px;color:#a0aec0;margin-bottom:18px;line-height:1.6">
+              The pipeline will scrape LinkedIn &amp; Indeed, score each job with AI using your resume,
+              generate tailored resumes + cover letters for the best matches, and save applications to the database.
+            </p>
+            <div id="resumeWarning"></div>
+            <div class="pipeline-controls">
+              <div class="status-dot" id="pDot"></div>
+              <span id="pStatus" style="font-size:13px;color:#718096">Idle</span>
+              <button class="btn btn-success" id="startBtn" onclick="startPipeline()">▶ Start Pipeline</button>
+              <button class="btn btn-danger btn-sm" id="stopBtn" style="display:none" onclick="stopPipeline()">■ Stop</button>
+            </div>
+            <div style="font-size:12px;color:#4a5568;margin-bottom:12px" id="pTime"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Live Log</h2><button class="btn btn-outline btn-sm" onclick="loadPipelineStatus()">↻ Refresh Log</button></div>
+          <div style="padding:12px">
+            <div class="log-box" id="pipelineLog"><p style="color:#4a5568">Pipeline not running. Click Start Pipeline to begin.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Jobs ── -->
+      <div class="page" id="page-jobs">
+        <div class="card">
+          <div class="card-head">
+            <h2>Scraped Jobs</h2>
+            <input id="jobQ" placeholder="Search title / company…" style="width:190px;padding:6px 10px;font-size:13px" oninput="filterJobs()">
+          </div>
+          <div id="jobsTable"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- ── Applications ── -->
+      <div class="page" id="page-applications">
+        <div class="card">
+          <div class="card-head"><h2>Applications</h2></div>
+          <div id="appsTable"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- ── Activity ── -->
+      <div class="page" id="page-activity">
+        <div class="card">
+          <div class="card-head"><h2>Activity Log</h2></div>
+          <div id="actTable"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- ── API Tester ── -->
+      <div class="page" id="page-apitester">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head"><h2>API Tester</h2></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:110px 1fr 90px;gap:10px;align-items:center;margin-bottom:10px">
+              <select id="apiMethod" style="padding:9px">
+                <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+              </select>
+              <input id="apiPath" value="/api/dashboard/stats">
+              <button class="btn btn-primary" onclick="runApi()">Send</button>
+            </div>
+            <div class="form-row"><label>Body (JSON)</label><textarea id="apiBody" style="height:70px;font-family:monospace;font-size:12px;resize:vertical"></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Response</h2><span id="apiStatus" class="badge badge-gray">—</span></div>
+          <div class="card-body">
+            <pre id="apiResp" style="background:#0a0d14;border:1px solid #2d3748;border-radius:6px;padding:12px;font-size:12px;color:#a0aec0;overflow:auto;max-height:380px;white-space:pre-wrap"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Quick Endpoints</h2></div>
+          <div class="card-body" style="display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/health')">GET /health</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/dashboard/stats')">GET /dashboard/stats</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/jobs')">GET /jobs</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/applications')">GET /applications</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/resume/current')">GET /resume/current</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/pipeline/status')">GET /pipeline/status</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/api/activity-log')">GET /activity-log</button>
+            <button class="btn btn-outline btn-sm" onclick="qa('GET','/metrics')">GET /metrics</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /appShell -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+const API = 'http://localhost:8000';
+let token = localStorage.getItem('jat') || '';
+let username = localStorage.getItem('jau') || '';
+let _jobs = [];
+let _pollTimer = null;
+
+// ── Helpers ──────────────────────────────────────────────────────
+async function req(method, path, body, isForm) {
+  const h = { Authorization: `Bearer ${token}` };
+  const opts = { method, headers: h };
+  if (body && !isForm) { h['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (isForm) opts.body = body;
+  const r = await fetch(API + path, opts);
+  return { status: r.status, ok: r.ok, data: await r.json().catch(() => ({})) };
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  try { return new Date(s).toLocaleString('en-IN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+  catch { return s; }
+}
+
+function badge(s) {
+  if (!s) return '—';
+  const m = { success:'green',submitted:'green',offer:'green',approved:'green',
+              pending:'yellow',interviewing:'yellow',scored:'yellow',viewed:'yellow',
+              failed:'red',rejected:'red',error:'red',
+              new:'blue',queued:'blue',queued_sync:'blue',started:'blue' };
+  return `<span class="badge badge-${m[s?.toLowerCase()]||'gray'}">${s}</span>`;
+}
+
+function scoreColor(n) {
+  if (n == null) return '#718096';
+  return n >= 80 ? '#68d391' : n >= 60 ? '#f6e05e' : '#fc8181';
+}
+
+function showAlert(elId, msg, type='error') {
+  document.getElementById(elId).innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+}
+
+// ── Auth ─────────────────────────────────────────────────────────
+function authTab(t) {
+  document.querySelectorAll('.tabs button').forEach((b,i)=>b.classList.toggle('active',(t==='login'&&i===0)||(t==='register'&&i===1)));
+  document.getElementById('loginForm').style.display = t==='login' ? '' : 'none';
+  document.getElementById('regForm').style.display   = t==='register' ? '' : 'none';
+  document.getElementById('authAlert').innerHTML = '';
+}
+
+async function doLogin() {
+  const u=document.getElementById('lu').value.trim(), p=document.getElementById('lp').value;
+  if (!u||!p) return showAlert('authAlert','Fill in all fields');
+  const fd=new FormData(); fd.append('username',u); fd.append('password',p);
+  try {
+    const r=await fetch(`${API}/auth/token`,{method:'POST',body:fd});
+    const d=await r.json();
+    if (!r.ok) return showAlert('authAlert',d.detail||'Login failed');
+    token=d.access_token; username=u;
+    localStorage.setItem('jat',token); localStorage.setItem('jau',u);
+    onLogin();
+  } catch { showAlert('authAlert','Cannot reach server at '+API); }
+}
+
+async function doRegister() {
+  const u=document.getElementById('ru').value.trim(), e=document.getElementById('re').value.trim(), p=document.getElementById('rp').value;
+  if (!u||!e||!p) return showAlert('authAlert','Fill in all fields');
+  try {
+    const r=await fetch(`${API}/auth/register?username=${encodeURIComponent(u)}&email=${encodeURIComponent(e)}&password=${encodeURIComponent(p)}`,{method:'POST'});
+    const d=await r.json();
+    if (!r.ok) return showAlert('authAlert',d.detail||'Registration failed');
+    token=d.access_token; username=u;
+    localStorage.setItem('jat',token); localStorage.setItem('jau',u);
+    onLogin();
+  } catch { showAlert('authAlert','Cannot reach server'); }
+}
+
+function logout() {
+  token=''; username='';
+  localStorage.removeItem('jat'); localStorage.removeItem('jau');
+  clearInterval(_pollTimer);
+  document.getElementById('authGate').style.display='';
+  document.getElementById('appShell').style.display='none';
+}
+
+function onLogin() {
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('appShell').style.display='';
+  document.getElementById('sidebarUser').innerHTML=`Logged in as<span class="uname">${username}</span>`;
+  loadDashboard();
+  pollPipeline();
+}
+
+// ── Navigation ────────────────────────────────────────────────────
+const titles = { dashboard:'Dashboard', resume:'My Resume', pipeline:'Run Pipeline',
+                 jobs:'Jobs', applications:'Applications', activity:'Activity Log', apitester:'API Tester' };
+function nav(p) {
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.dataset.p===p));
+  document.getElementById('pageTitle').textContent=titles[p];
+  ({ dashboard:loadDashboard, resume:loadResume, pipeline:loadPipelineStatus,
+     jobs:loadJobs, applications:loadApplications, activity:loadActivity }[p] || (()=>{}))();
+}
+function refresh() { const a=document.querySelector('.page.active'); if(a) nav(a.id.replace('page-','')); }
+
+// ── Dashboard ─────────────────────────────────────────────────────
+async function loadDashboard() {
+  const {data:s} = await req('GET','/api/dashboard/stats');
+  document.getElementById('s-jobs').textContent    = s.total_jobs ?? '0';
+  document.getElementById('s-apps').textContent    = s.total_applications ?? '0';
+  document.getElementById('s-ivw').textContent     = s.total_interviews ?? '0';
+  document.getElementById('s-offers').textContent  = s.total_offers ?? '0';
+  const r=s.application_success_rate;
+  document.getElementById('s-rate').textContent    = r!=null ? (r*100).toFixed(1)+'%' : '—';
+  document.getElementById('s-rate-sub').textContent= r!=null ? 'view rate' : 'no data yet';
+
+  // Resume status box
+  const {data:rv} = await req('GET','/api/resume/current');
+  const rsEl = document.getElementById('dashResumeStatus');
+  if (rv.resume) {
+    const r2=rv.resume;
+    rsEl.innerHTML=`<div style="font-size:13px">
+      <div style="font-weight:600;font-size:15px;color:#e2e8f0;margin-bottom:4px">${r2.name||'—'}</div>
+      <div style="color:#718096;margin-bottom:10px">${r2.email||''} · ${r2.location||''}</div>
+      <div class="section-label">Top Skills</div>
+      <div>${(r2.skills?.primary||[]).slice(0,6).map(s=>`<span class="skill-chip">${s}</span>`).join('')}</div>
+      <div style="margin-top:12px"><button class="btn btn-outline btn-sm" onclick="nav('resume')">✏ Update Resume</button></div>
+    </div>`;
+  } else {
+    rsEl.innerHTML=`<div class="empty" style="padding:20px">
+      No resume uploaded yet.<br>
+      <button class="btn btn-primary btn-sm mt-2" onclick="nav('resume')" style="margin-top:10px">📄 Upload Resume</button>
+    </div>`;
+  }
+
+  // Activity
+  const {data:act} = await req('GET','/api/activity-log');
+  const logs=(act.logs||act||[]).slice(0,6);
+  document.getElementById('dashActivity').innerHTML=logs.length?`
+    <table><thead><tr><th>Time</th><th>Type</th><th>Status</th><th>Details</th></tr></thead><tbody>
+    ${logs.map(l=>`<tr>
+      <td style="color:#718096;font-size:12px">${fmtDate(l.timestamp)}</td>
+      <td><span class="tag">${l.activity_type||'—'}</span></td>
+      <td>${badge(l.status)}</td>
+      <td class="truncate" style="color:#718096;font-size:12px">${JSON.stringify(l.details||{}).slice(0,70)}</td>
+    </tr>`).join('')}
+    </tbody></table>` : `<div class="empty">No activity yet — run the pipeline to get started</div>`;
+}
+
+// ── Resume ────────────────────────────────────────────────────────
+async function loadResume() {
+  const {data} = await req('GET','/api/resume/current');
+  if (data.resume) renderResume(data.resume);
+}
+
+function dzOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function dzLeave()  { document.getElementById('dropZone').classList.remove('drag-over'); }
+function dzDrop(e)  { e.preventDefault(); dzLeave(); const f=e.dataTransfer.files[0]; if(f) uploadFile(f); }
+
+async function uploadFile(file) {
+  if (!file) return;
+  const dz=document.getElementById('dropZone');
+  dz.innerHTML=`<div class="dz-icon"><div class="spinner"></div></div><div class="dz-text">Parsing <strong>${file.name}</strong> with AI…</div><div class="dz-sub">This takes 5-10 seconds</div>`;
+  document.getElementById('uploadAlert').innerHTML='';
+
+  const fd=new FormData(); fd.append('file',file);
+  try {
+    const r=await fetch(`${API}/api/resume/upload`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+    const d=await r.json();
+    if (!r.ok) {
+      resetDropZone();
+      return showAlert('uploadAlert', d.detail||'Upload failed', 'error');
+    }
+    resetDropZone();
+    showAlert('uploadAlert',`Resume parsed successfully from <strong>${file.name}</strong>`, 'success');
+    renderResume(d.resume);
+  } catch(e) {
+    resetDropZone();
+    showAlert('uploadAlert','Upload failed: '+e.message,'error');
+  }
+}
+
+function resetDropZone() {
+  document.getElementById('dropZone').innerHTML=`
+    <div class="dz-icon">📂</div>
+    <div class="dz-text">Drop your resume here or <strong style="color:#63b3ed">click to browse</strong></div>
+    <div class="dz-sub">Supported: PDF, DOCX, TXT</div>`;
+}
+
+function renderResume(r) {
+  const card=document.getElementById('resumeCard');
+  const body=document.getElementById('resumeCardBody');
+  document.getElementById('resumeCardTitle').textContent=`Parsed Resume — ${r.name||'Unknown'}`;
+  card.style.display='';
+
+  const field=(lbl,val)=>val?`<div class="resume-field"><div class="rf-label">${lbl}</div><div class="rf-val">${val}</div></div>`:'';
+  const skills=(r.skills?.primary||[]).map(s=>`<span class="skill-chip">${s}</span>`).join('');
+  const skillsSec=(r.skills?.secondary||[]).map(s=>`<span class="skill-chip" style="background:#1c4532;color:#68d391">${s}</span>`).join('');
+  const exp=(r.experience||[]).map(e=>`
+    <div style="margin-bottom:14px;padding:12px;background:#0f1117;border-radius:6px;border:1px solid #1e2a3a">
+      <div style="font-weight:600;color:#e2e8f0">${e.title} <span style="color:#718096">@ ${e.company}</span></div>
+      <div style="font-size:12px;color:#718096;margin:3px 0">${e.start_date||''} – ${e.end_date||''} · ${e.location||''}</div>
+      <ul style="margin:8px 0 0 16px;color:#a0aec0;font-size:12px;line-height:1.7">
+        ${(e.achievements||[]).map(a=>`<li>${a}</li>`).join('')}
+      </ul>
+    </div>`).join('');
+  const proj=(r.projects||[]).map(p=>`
+    <div style="margin-bottom:10px;padding:10px;background:#0f1117;border-radius:6px;border:1px solid #1e2a3a">
+      <div style="font-weight:600;color:#e2e8f0">${p.name} <span style="font-size:11px;color:#63b3ed;font-weight:400">${p.technologies||''}</span></div>
+      <div style="font-size:12px;color:#a0aec0;margin-top:4px">${p.description||''}</div>
+    </div>`).join('');
+
+  body.innerHTML=`
+    <div style="margin-bottom:16px">
+      ${field('Name', r.name)}
+      ${field('Email', r.email)}
+      ${field('Phone', r.phone)}
+      ${field('Location', r.location)}
+      ${field('LinkedIn', r.linkedin ? `<a href="${r.linkedin}" target="_blank" style="color:#63b3ed">${r.linkedin}</a>` : '')}
+      ${field('GitHub', r.github ? `<a href="${r.github}" target="_blank" style="color:#63b3ed">${r.github}</a>` : '')}
+    </div>
+    ${r.summary?`<div style="margin-bottom:16px"><div class="section-label">Summary</div><div style="font-size:13px;color:#a0aec0;line-height:1.6">${r.summary}</div></div>`:''}
+    <div style="margin-bottom:16px"><div class="section-label">Primary Skills</div>${skills}</div>
+    ${skillsSec?`<div style="margin-bottom:16px"><div class="section-label">Secondary Skills</div>${skillsSec}</div>`:''}
+    ${exp?`<div style="margin-bottom:16px"><div class="section-label">Experience</div>${exp}</div>`:''}
+    ${proj?`<div style="margin-bottom:16px"><div class="section-label">Projects</div>${proj}</div>`:''}
+    <div style="margin-top:16px">
+      <button class="btn btn-success" onclick="nav('pipeline')">▶ Run Pipeline with this Resume</button>
+    </div>`;
+}
+
+// ── Pipeline ──────────────────────────────────────────────────────
+async function loadPipelineStatus() {
+  const {data} = await req('GET','/api/pipeline/status');
+  updatePipelineUI(data);
+
+  // Also warn if no resume
+  const {data:rv} = await req('GET','/api/resume/current');
+  const w=document.getElementById('resumeWarning');
+  w.innerHTML = rv.resume
+    ? `<div class="alert alert-success" style="margin-bottom:14px">✓ Resume loaded: <strong>${rv.resume.name}</strong> · ${(rv.resume.skills?.primary||[]).slice(0,3).join(', ')}</div>`
+    : `<div class="alert alert-warn" style="margin-bottom:14px">⚠ No resume uploaded yet. <a href="#" onclick="nav('resume')" style="color:#f6e05e;text-decoration:underline">Upload your resume first</a> for best results.</div>`;
+}
+
+function updatePipelineUI(data) {
+  const running=data.running;
+  document.getElementById('pDot').className='status-dot'+(running?' running':'');
+  document.getElementById('pStatus').textContent=running ? `Running (PID started ${fmtDate(data.started_at)})` : (data.last_run ? `Last run: ${fmtDate(data.last_run)}` : 'Idle');
+  document.getElementById('startBtn').style.display=running?'none':'';
+  document.getElementById('stopBtn').style.display=running?'':'none';
+  document.getElementById('pipelineBadge').innerHTML=running?'<span class="badge badge-green" style="margin-right:4px">● Pipeline Running</span>':'';
+  document.getElementById('pTime').textContent=data.last_run&&!running?`Finished: ${fmtDate(data.last_run)}`:'';
+
+  if (data.log && data.log.length) {
+    const box=document.getElementById('pipelineLog');
+    box.innerHTML=data.log.map(l=>{
+      const cls=l.includes('ERROR')||l.includes('❌')?'log-err':
+                l.includes('INFO')||l.includes('✓')||l.includes('✅')?'log-ok':
+                l.includes('WARNING')||l.includes('⚠')?'log-warn':'';
+      return `<p class="${cls}">${l}</p>`;
+    }).join('');
+    box.scrollTop=box.scrollHeight;
+  }
+}
+
+async function startPipeline() {
+  document.getElementById('startBtn').disabled=true;
+  const {status,data} = await req('POST','/api/pipeline/start');
+  document.getElementById('startBtn').disabled=false;
+  if (status===200||status===202) {
+    updatePipelineUI({running:true,started_at:data.started_at,last_run:null,log:['Pipeline started…']});
+    pollPipeline(true);
+  } else {
+    showAlert('resumeWarning',data.detail||'Failed to start pipeline','error');
+  }
+}
+
+async function stopPipeline() {
+  await req('POST','/api/pipeline/stop');
+  clearInterval(_pollTimer);
+  await loadPipelineStatus();
+}
+
+function pollPipeline(force=false) {
+  clearInterval(_pollTimer);
+  _pollTimer=setInterval(async()=>{
+    const {data}=await req('GET','/api/pipeline/status');
+    if (document.querySelector('#page-pipeline.active')) updatePipelineUI(data);
+    // Update badge in topbar
+    document.getElementById('pipelineBadge').innerHTML=data.running?'<span class="badge badge-green" style="margin-right:4px">● Pipeline Running</span>':'';
+    if (!data.running) clearInterval(_pollTimer);
+  }, 3000);
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────
+async function loadJobs() {
+  const {data} = await req('GET','/api/jobs');
+  _jobs=data.jobs||data||[];
+  renderJobs(_jobs);
+}
+function filterJobs() {
+  const q=document.getElementById('jobQ').value.toLowerCase();
+  renderJobs(q ? _jobs.filter(j=>(j.title+j.company).toLowerCase().includes(q)) : _jobs);
+}
+function renderJobs(jobs) {
+  document.getElementById('jobsTable').innerHTML=jobs.length?`
+    <table><thead><tr><th>Title</th><th>Company</th><th>Location</th><th>Platform</th><th>Score</th><th>Applied</th><th>Action</th></tr></thead><tbody>
+    ${jobs.map(j=>`<tr>
+      <td><a href="${j.url}" target="_blank" style="color:#63b3ed;text-decoration:none">${(j.title||'').slice(0,42)}</a></td>
+      <td>${j.company||'—'}</td>
+      <td style="color:#718096;font-size:12px">${j.location||'—'}</td>
+      <td><span class="tag">${j.platform||'—'}</span></td>
+      <td style="color:${scoreColor(j.match_score)}">${j.match_score!=null?j.match_score.toFixed(0)+'%':'—'}</td>
+      <td>${j.applied?'<span class="badge badge-green">Yes</span>':'—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="applyJob('${j.id}','${(j.title||'').replace(/'/g,'')}')" ${j.applied?'disabled':''}>Apply</button></td>
+    </tr>`).join('')}
+    </tbody></table>` : `<div class="empty">No jobs found — run the pipeline to scrape jobs</div>`;
+}
+
+async function applyJob(id, title) {
+  if (!confirm(`Apply to: ${title}?`)) return;
+  const {status,data} = await req('POST',`/api/jobs/${id}/apply`);
+  alert(status===200||status===202 ? `Application submitted! Status: ${data.status}` : `Error: ${data.detail||JSON.stringify(data)}`);
+  loadJobs();
+}
+
+// ── Applications ──────────────────────────────────────────────────
+async function loadApplications() {
+  const {data} = await req('GET','/api/applications');
+  const apps=data.applications||data||[];
+  document.getElementById('appsTable').innerHTML=apps.length?`
+    <table><thead><tr><th>Job Title</th><th>Company</th><th>Platform</th><th>Applied</th><th>Status</th><th>Offer</th></tr></thead><tbody>
+    ${apps.map(a=>`<tr>
+      <td>${a.job_title||'—'}</td>
+      <td>${a.company||'—'}</td>
+      <td><span class="tag">${a.platform||'—'}</span></td>
+      <td style="color:#718096;font-size:12px">${fmtDate(a.applied_at)}</td>
+      <td>${badge(a.status)}</td>
+      <td>${a.offer_received?'<span class="badge badge-green">Yes</span>':'—'}</td>
+    </tr>`).join('')}
+    </tbody></table>` : `<div class="empty">No applications yet</div>`;
+}
+
+// ── Activity ──────────────────────────────────────────────────────
+async function loadActivity() {
+  const {data} = await req('GET','/api/activity-log');
+  const logs=data.logs||data||[];
+  document.getElementById('actTable').innerHTML=logs.length?`
+    <table><thead><tr><th>Time</th><th>Type</th><th>Platform</th><th>Status</th><th>Duration</th><th>Details</th></tr></thead><tbody>
+    ${logs.map(l=>`<tr>
+      <td style="color:#718096;font-size:12px">${fmtDate(l.timestamp)}</td>
+      <td><span class="tag">${l.activity_type||'—'}</span></td>
+      <td>${l.platform||'—'}</td>
+      <td>${badge(l.status)}</td>
+      <td style="color:#718096">${l.duration_seconds!=null?l.duration_seconds.toFixed(1)+'s':'—'}</td>
+      <td class="truncate" style="color:#718096;font-size:12px">${JSON.stringify(l.details||{}).slice(0,70)}</td>
+    </tr>`).join('')}
+    </tbody></table>` : `<div class="empty">No activity yet</div>`;
+}
+
+// ── API Tester ────────────────────────────────────────────────────
+async function runApi() {
+  const method=document.getElementById('apiMethod').value;
+  const path=document.getElementById('apiPath').value;
+  const raw=document.getElementById('apiBody').value.trim();
+  let body; try { body=raw?JSON.parse(raw):undefined; } catch { return alert('Invalid JSON'); }
+  const opts={method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}};
+  if(body) opts.body=JSON.stringify(body);
+  const r=await fetch(API+path,opts);
+  const t=await r.text();
+  let p; try{p=JSON.stringify(JSON.parse(t),null,2);}catch{p=t;}
+  document.getElementById('apiStatus').textContent=r.status+' '+r.statusText;
+  document.getElementById('apiStatus').className='badge '+(r.ok?'badge-green':'badge-red');
+  document.getElementById('apiResp').textContent=p;
+}
+function qa(m,p){ document.getElementById('apiMethod').value=m; document.getElementById('apiPath').value=p; document.getElementById('apiBody').value=''; nav('apitester'); runApi(); }
+
+// ── Boot ──────────────────────────────────────────────────────────
+if (token) {
+  document.getElementById('authGate').style.display='none';
+  document.getElementById('appShell').style.display='';
+  document.getElementById('sidebarUser').innerHTML=`Logged in as<span class="uname">${username}</span>`;
+  loadDashboard();
+  pollPipeline();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "Satyam Shivam",
+  "email": "shivamsatyam35@gmail.com",
+  "phone": "+91 9852015381",
+  "location": "New Delhi, India",
+  "linkedin": "",
+  "github": "",
+  "summary": "AI Engineer specializing in LangChain, RAG systems, FastAPI. 2 years experience building GenAI applications.",
+  "skills": {
+    "primary": [
+      "Python",
+      "LangChain",
+      "RAG",
+      "FastAPI",
+      "CrewAI",
+      "Docker",
+      "AWS"
+    ],
+    "secondary": [
+      "PostgreSQL",
+      "FAISS",
+      "ChromaDB",
+      "React"
+    ]
+  },
+  "experience": [
+    {
+      "title": "AI Developer Intern",
+      "company": "Asvix",
+      "location": "",
+      "start_date": "Jan 2026",
+      "end_date": "Apr 2026",
+      "achievements": [
+        "Built RAG pipeline improving query relevance by 23%",
+        "Reduced hallucination rate from 18% to 11%"
+      ]
+    }
+  ],
+  "projects": [],
+  "education": [
+    {
+      "degree": "B.Tech Computer Science - AI & ML",
+      "institution": "United Institute of Technology",
+      "graduation_date": "2026",
+      "gpa": null
+    }
+  ]
+}

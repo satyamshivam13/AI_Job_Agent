@@ -4,8 +4,12 @@ Provides endpoints for dashboard and external integrations
 """
 
 import os
+import json
+import asyncio
+import subprocess
+from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Depends, Query, Request, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session
@@ -648,6 +652,211 @@ async def download_resume(
         media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         filename=f'resume_{version.variant_type}.docx'
     )
+
+
+# =============================================================================
+# RESUME UPLOAD & PIPELINE ENDPOINTS
+# =============================================================================
+
+RESUME_DATA_PATH = Path("data/resume.json")
+PIPELINE_LOG_PATH = Path("data/pipeline.log")
+_pipeline_proc: Optional[asyncio.subprocess.Process] = None
+_pipeline_status = {"running": False, "started_at": None, "last_run": None, "log": []}
+
+
+def _extract_text_from_file(content: bytes, filename: str) -> str:
+    """Extract plain text from PDF or DOCX bytes."""
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        import io
+        from PyPDF2 import PdfReader
+        reader = PdfReader(io.BytesIO(content))
+        return "\n".join(p.extract_text() or "" for p in reader.pages)
+    elif ext in (".docx", ".doc"):
+        import io
+        from docx import Document as DocxDoc
+        doc = DocxDoc(io.BytesIO(content))
+        return "\n".join(p.text for p in doc.paragraphs)
+    elif ext == ".txt":
+        return content.decode("utf-8", errors="ignore")
+    else:
+        raise ValueError(f"Unsupported file type: {ext}")
+
+
+async def _parse_resume_with_llm(raw_text: str) -> dict:
+    """Use Groq to parse raw resume text into structured JSON."""
+    from langchain_groq import ChatGroq
+    llm = ChatGroq(
+        api_key=settings.groq_api_key,
+        model_name="llama-3.3-70b-versatile",
+        temperature=0.1,
+        max_tokens=4096,
+    )
+    prompt = f"""Extract the following fields from this resume text and return ONLY valid JSON, no markdown, no explanation.
+
+Required JSON structure:
+{{
+  "name": "full name",
+  "email": "email address",
+  "phone": "phone number",
+  "location": "city, country",
+  "linkedin": "linkedin url or empty string",
+  "github": "github url or empty string",
+  "summary": "professional summary paragraph",
+  "skills": {{
+    "primary": ["skill1", "skill2"],
+    "secondary": ["skill1", "skill2"]
+  }},
+  "experience": [
+    {{
+      "title": "job title",
+      "company": "company name",
+      "location": "location",
+      "start_date": "Mon YYYY",
+      "end_date": "Mon YYYY or Present",
+      "achievements": ["bullet point 1", "bullet point 2"]
+    }}
+  ],
+  "projects": [
+    {{
+      "name": "project name",
+      "technologies": "comma separated tech stack",
+      "description": "one line description"
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "degree name",
+      "institution": "school name",
+      "graduation_date": "YYYY",
+      "gpa": null
+    }}
+  ]
+}}
+
+Resume text:
+{raw_text[:6000]}"""
+
+    response = llm.invoke(prompt)
+    text = response.content.strip()
+    # Strip markdown fences if present
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text)
+
+
+@app.post("/api/resume/upload")
+async def upload_resume(
+    file: UploadFile = File(...),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Upload a PDF or DOCX resume, parse it with AI, save for pipeline use."""
+    allowed = {".pdf", ".docx", ".doc", ".txt"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=422, detail=f"Unsupported file type '{ext}'. Use PDF, DOCX, or TXT.")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large. Max 5 MB.")
+
+    try:
+        raw_text = _extract_text_from_file(content, file.filename)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not read file: {e}")
+
+    if len(raw_text.strip()) < 100:
+        raise HTTPException(status_code=422, detail="Extracted text is too short. Is the file readable?")
+
+    try:
+        parsed = await _parse_resume_with_llm(raw_text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
+
+    RESUME_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RESUME_DATA_PATH.write_text(json.dumps(parsed, indent=2))
+
+    return {"status": "ok", "filename": file.filename, "resume": parsed}
+
+
+@app.get("/api/resume/current")
+async def get_current_resume(current_user: TokenData = Depends(get_current_user)):
+    """Return the currently saved resume data."""
+    if not RESUME_DATA_PATH.exists():
+        return {"resume": None, "source": "none"}
+    try:
+        data = json.loads(RESUME_DATA_PATH.read_text())
+        return {"resume": data, "source": "uploaded"}
+    except Exception:
+        return {"resume": None, "source": "error"}
+
+
+@app.post("/api/pipeline/start")
+async def start_pipeline(current_user: TokenData = Depends(get_current_user)):
+    """Start the job search + application pipeline as a background process."""
+    global _pipeline_proc, _pipeline_status
+
+    if _pipeline_status["running"]:
+        return {"status": "already_running", "started_at": _pipeline_status["started_at"]}
+
+    PIPELINE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    log_file = open(str(PIPELINE_LOG_PATH), "w", encoding="utf-8")
+
+    env = {**os.environ, "PYTHONUTF8": "1"}
+    _pipeline_proc = await asyncio.create_subprocess_exec(
+        "python", "main.py", "--mode", "search",
+        stdout=log_file, stderr=log_file,
+        env=env,
+        cwd=str(Path(__file__).parent.parent),
+    )
+
+    _pipeline_status["running"] = True
+    _pipeline_status["started_at"] = datetime.now(timezone.utc).isoformat()
+    _pipeline_status["log"] = []
+
+    async def _watch():
+        await _pipeline_proc.wait()
+        log_file.close()
+        _pipeline_status["running"] = False
+        _pipeline_status["last_run"] = datetime.now(timezone.utc).isoformat()
+
+    asyncio.create_task(_watch())
+    return {"status": "started", "pid": _pipeline_proc.pid, "started_at": _pipeline_status["started_at"]}
+
+
+@app.get("/api/pipeline/status")
+async def pipeline_status(current_user: TokenData = Depends(get_current_user)):
+    """Return pipeline running status and last log lines."""
+    log_lines: list[str] = []
+    if PIPELINE_LOG_PATH.exists():
+        try:
+            text = PIPELINE_LOG_PATH.read_text(encoding="utf-8", errors="replace")
+            log_lines = text.splitlines()[-60:]
+        except Exception:
+            pass
+    return {
+        "running": _pipeline_status["running"],
+        "started_at": _pipeline_status["started_at"],
+        "last_run": _pipeline_status["last_run"],
+        "log": log_lines,
+    }
+
+
+@app.post("/api/pipeline/stop")
+async def stop_pipeline(current_user: TokenData = Depends(get_current_user)):
+    """Kill the running pipeline process."""
+    global _pipeline_proc, _pipeline_status
+    if not _pipeline_status["running"] or _pipeline_proc is None:
+        return {"status": "not_running"}
+    try:
+        _pipeline_proc.terminate()
+        await asyncio.wait_for(_pipeline_proc.wait(), timeout=5)
+    except Exception:
+        _pipeline_proc.kill()
+    _pipeline_status["running"] = False
+    return {"status": "stopped"}
 
 
 # =============================================================================
